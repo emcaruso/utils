@@ -12,17 +12,17 @@ class pose():
     def __init__(self, w_T_cam=torch.eye(4, dtype=torch.float32)):
         self.w_T_cam = w_T_cam
 
-    def location(self): return self.w_T_cam[-1,:3]
-    def rotation(self): return self.w_T_cam[:3,:3]
+    def location(self): return self.w_T_cam[...,-1,:3]
+    def rotation(self): return self.w_T_cam[...,:3,:3]
     def set_pose(self, w_T_cam): self.w_T_cam = w_T_cam
-    def set_location(self, new_loc): self.w_T_cam[-1,:3] = new_loc
-    def set_rotation(self, new_rot): self.w_T_cam[:3,:3] = new_rot
+    def set_location(self, new_loc): self.w_T_cam[...,-1,:3] = new_loc
+    def set_rotation(self, new_rot): self.w_T_cam[...,:3,:3] = new_rot
     def set_euler(self, e): self.set_rotation(e.eul2rot())
     def rotate(self, rot): self.set_rotation(torch.matmul(rot, self.rotation()))
     def rotate_euler(self, r): self.rotate(r.eul2rot())
     def move_location(self, v): self.set_location(self.location()+v)
 
-    def show_pose(self):
+    def show_pose(self, bound=2):
         x_axis_end = torch.FloatTensor((1, 0, 0))
         y_axis_end = torch.FloatTensor((0, 1, 0))
         z_axis_end = torch.FloatTensor((0, 0, 1))
@@ -40,6 +40,9 @@ class pose():
         ax.set_xlabel('X')
         ax.set_ylabel('Y')
         ax.set_zlabel('Z')
+        ax.set_xlim(-bound,bound)
+        ax.set_ylim(-bound,bound)
+        ax.set_zlim(-bound,bound)
         ax.legend()
         plt.show()
 
