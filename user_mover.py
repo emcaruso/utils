@@ -1,7 +1,7 @@
 import numpy as np
 import sys, os
 import torch
-from user import *
+from user_interface import *
 
 
 class mover():  
@@ -29,7 +29,6 @@ class mover():
 if __name__=="__main__":
     user.detect_mouse_and_key()
     while True:
-        # print(user.key)
         v = mover.wasd2v(user.keys)
         print(v)
         time.sleep(0.1)

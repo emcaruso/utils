@@ -4,10 +4,11 @@ import cv2
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import math
-from euler import *
+import sys, os
+from geometry_euler import *
 
 
-class pose():
+class frame():
 
     def __init__(self, w_T_cam=torch.eye(4, dtype=torch.float32)):
         self.w_T_cam = w_T_cam
@@ -47,14 +48,14 @@ class pose():
         plt.show()
 
 if __name__ == "__main__":
-    p = pose()
+    p = frame()
 
     for i in np.arange(0,math.pi/4, 0.1):
-        p.set_euler(euler(torch.FloatTensor([i,0,0])))
+        p.set_euler(eul(torch.FloatTensor([i,0,0])))
         p.show_pose()
 
     # for i in range(10):
-    #     p.rotate_euler(euler(torch.FloatTensor([0.1,0,0])))
+    #     p.rotate_euler(eul(torch.FloatTensor([0.1,0,0])))
     #     p.show_pose()
 
 #     for i in range(10):

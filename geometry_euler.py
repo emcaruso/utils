@@ -1,6 +1,6 @@
 import torch
 
-class euler():
+class eul():
     def __init__(self, e=torch.zeros([3]), convention="YXZ"):
         self.e = e
         self.convention = convention

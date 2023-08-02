@@ -1,11 +1,15 @@
 import cv2
 import torch
+import sys, os
+
+from geometry_pose import *
+
 
 class Camera_cv():
 
     def __init__(self, K=torch.eye(3, dtype=torch.float32) ):
         self.K = K
-        # self.pose = 
+        self.frame = frame()
 
     def cx(self): return self.K[0,2]
     def cy(self): return self.K[1,2]
@@ -14,5 +18,4 @@ class Camera_cv():
 
 if __name__=="__main__":
     c = Camera_cv()
-    print(c)
 
