@@ -1,5 +1,12 @@
 import numpy as np
-from submodules.user.user import *
+import sys, os
+sys.path.append(os.path.abspath('../user'))
+
+current = os.path.dirname(os.path.realpath(__file__))
+parent = os.path.abspath(current+"/..")
+sys.path.insert(1, parent)
+from user.user import *
+
 
 
 # class cam():
