@@ -6,14 +6,7 @@ import time
 
 
 class user():
-    # Mapping of keys to their corresponding names
-    key_mapping = {
-        keyboard.Key.up: "w",
-        keyboard.Key.left: "a",
-        keyboard.Key.down: "s",
-        keyboard.Key.right: "d",
-    }
-    key = None
+    keys = []
     center = np.array([400,300])
     pos = center
     pos_delta = None
@@ -22,19 +15,22 @@ class user():
 
     @staticmethod
     def on_press(key):
-        user.key = key
+        if key.char not in user.keys:
+            user.keys.append(key.char)
         time.sleep(user.dt)
 
     @staticmethod
     def on_release(key):
-        user.key = None
+        assert(key.char in user.keys)
+        user.keys.remove(key.char)
         if key==keyboard.Key.esc:
             return False
 
 
-
     @staticmethod
     def on_click(x,y,button,pressed):
+        user.pos = None
+        user.pos_delta = None
         return False
 
     @staticmethod
@@ -58,9 +54,13 @@ class user():
         listener = mouse.Listener(on_move=user.on_move,on_click=user.on_click )
         listener.start()
 
+    @staticmethod
+    def detect_mouse_and_key():
+        user.detect_key()
+        user.detect_mouse_movement()
+
 if __name__=="__main__":
-    user.detect_key()
-    user.detect_mouse_movement()
+    user.detect_mouse_and_key()
     while True:
-        print(user.pos_delta, user.key)
+        print(user.pos_delta, user.keys)
         time.sleep(0.01)
