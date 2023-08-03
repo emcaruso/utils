@@ -35,9 +35,12 @@ def stdout_redirected(to=os.devnull):
                                             # buffering and flags such as
                                             # CLOEXEC may be different
 
-def launch_blender_script( blend_file, script_path, arguments=[""] ):
+def launch_blender_script( blend_file, script_path):
     args = " ".join(arguments)
-    os.system("blender "+ blend_file +" --background --python "+script_path+" -- "+args)
+    os.system("blender "+ blend_file +" --background --python "+script_path)
+# def launch_blender_script( blend_file, script_path, arguments=[""] ):
+#     args = " ".join(arguments)
+#     os.system("blender "+ blend_file +" --background --python "+script_path+" -- "+args)
 
 def get_blend_file( blend_dir, blend_dataset ):
     dir = blend_dir+"/"+blend_dataset
