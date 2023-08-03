@@ -38,6 +38,12 @@ def stdout_redirected(to=os.devnull):
 def launch_blender_script( blend_file, script_path ):
     os.system("blender "+ blend_file +" --background --python "+script_path)
 
+def get_blend_file( blend_dir, blend_dataset ):
+    dir = blend_dir+"/"+blend_dataset
+    blend_files = [ os.path.abspath(dir+"/"+f) for f in list(os.listdir(dir)) if f[-6:]==".blend"]
+    assert(len(blend_files)==1)
+    return blend_files[0]
+
 def blenderTransform( obj ):
     obj.rotation_euler[1]*=-1
     obj.rotation_euler[2]*=-1
