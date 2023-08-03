@@ -1,4 +1,7 @@
-import bpy
+try:
+    import bpy
+except:
+    1
 from contextlib import contextmanager
 import os
 import sys
