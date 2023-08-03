@@ -32,6 +32,9 @@ def stdout_redirected(to=os.devnull):
                                             # buffering and flags such as
                                             # CLOEXEC may be different
 
+def launch_blender_script( blend_file, script_path ):
+    os.system("blender "+ blend_file +" --background --python "+script_path)
+
 def blenderTransform( obj ):
     obj.rotation_euler[1]*=-1
     obj.rotation_euler[2]*=-1
