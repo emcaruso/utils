@@ -1,8 +1,8 @@
 def print_hash(string, offs=5):
     l = len(string)+ (offs+1)*2
-    print("#" * l)
+    print("\n"+"#" * l)
     print("#"*offs+" "+ string +" "+"#"*offs)
-    print("#" * l)
+    print("#" * l+"\n")
 
 
 
