@@ -10,14 +10,14 @@ from geometry_euler import *
 
 class frame():
 
-    def __init__(self, w_T_cam=torch.eye(4, dtype=torch.float32)):
-        self.w_T_cam = w_T_cam
+    def __init__(self, T=torch.eye(4, dtype=torch.float32)):
+        self.T = T
 
-    def location(self): return self.w_T_cam[...,-1,:3]
-    def rotation(self): return self.w_T_cam[...,:3,:3]
-    def set_pose(self, w_T_cam): self.w_T_cam = w_T_cam
-    def set_location(self, new_loc): self.w_T_cam[...,-1,:3] = new_loc
-    def set_rotation(self, new_rot): self.w_T_cam[...,:3,:3] = new_rot
+    def location(self): return self.T[...,-1,:3]
+    def rotation(self): return self.T[...,:3,:3]
+    def set_pose(self, T): self.T = T
+    def set_location(self, new_loc): self.T[...,-1,:3] = new_loc
+    def set_rotation(self, new_rot): self.T[...,:3,:3] = new_rot
     def set_euler(self, e): self.set_rotation(e.eul2rot())
     def rotate(self, rot): self.set_rotation(torch.matmul(rot, self.rotation()))
     def rotate_euler(self, r): self.rotate(r.eul2rot())
