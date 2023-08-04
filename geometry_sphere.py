@@ -8,6 +8,9 @@ class sphere():
     def center(self):
         return self.frame.location()
 
+    def rotation(self):
+        return self.frame.rotation()
+
     # def point_on_sphere(self, point):
     #     r = self.radius.repeat # radius with same shape as point
     #     return torch.norm(point-sphere.center(), dim=-1) == r
