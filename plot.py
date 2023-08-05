@@ -116,12 +116,12 @@ if __name__ == "__main__":
     p = plotter()
     p.init_figure()
 
-    # plot 2 spheres
-    f = frame( torch.stack((torch.eye(4, dtype=torch.float32),torch.eye(4, dtype=torch.float32))) )
-    f.set_location( torch.FloatTensor([[0.5,0.2,0], [0,0,0.6]]))
-    r = torch.FloatTensor( [[0.5],[0.1]])
-    s = sphere( f, r)
-    p.plot_sphere(s)
+    # # plot 2 spheres
+    # f = frame( torch.stack((torch.eye(4, dtype=torch.float32),torch.eye(4, dtype=torch.float32))) )
+    # f.set_location( torch.FloatTensor([[0.5,0.2,0], [0,0,0.6]]))
+    # r = torch.FloatTensor( [[0.5],[0.1]])
+    # s = sphere( f, r)
+    # p.plot_sphere(s)
 
     # plot points
     points = torch.tensor([
