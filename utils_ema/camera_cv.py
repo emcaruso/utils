@@ -2,9 +2,9 @@ import cv2
 import torch
 import sys, os
 
-from .geometry_pose import *
-from .plot import *
-from .torch_utils import *
+from geometry_pose import *
+from plot import *
+from torch_utils import *
 
 
 class Camera_cv():
@@ -32,7 +32,7 @@ class Camera_cv():
         # plt.imshow(self.images[img_name])
         # plt.show()
 
-    def get_pixel_grid(self, n = None):
+    def get_pixel_grid(self, n = None, longtens=False):
         if n is None:
             n=self.resolution
         offs = (self.resolution/n)/2
@@ -40,7 +40,16 @@ class Camera_cv():
         y_range = torch.linspace(offs[1], self.resolution[1]-offs[1], n[1])  # 5 points from -1 to 1
         X, Y = torch.meshgrid(x_range, y_range)
         grid = torch.cat( (X.unsqueeze(-1), Y.unsqueeze(-1)), dim=-1 )
+        if longtens:
+            return torch.trunc(grid).type(torch.LongTensor)
         return grid
+
+    def sample_pixels( self, num_pixels, longtens=False ):
+        pixels_idxs = torch.reshape(self.get_pixel_grid( ), (-1,len(self.resolution)))
+        perm = torch.randperm(pixels_idxs.shape[0])
+        n = min(pixels_idxs.shape[0],num_pixels )
+        sampl_image_idxs = pixels_idxs[perm][:n]
+        return sampl_image_idxs
 
     def get_all_rays(self):
         grid = c.get_pixel_grid( )
@@ -60,9 +69,6 @@ class Camera_cv():
         origin = repeat_tensor_to_match_shape( origin, dir.shape )
         return origin, dir
 
-    
-
-
 class Camera_on_sphere(Camera_cv):
     
     def __init__(self, az_el, az_el_idx, K, frame, resolution, images=None, name="Unk Cam on sphere" ):
@@ -72,10 +78,12 @@ class Camera_on_sphere(Camera_cv):
 if __name__=="__main__":
     # c = Camera_on_sphere()
     c = Camera_cv()
+    c.sample_pixels( 10 )
     c.frame.rotate_euler(eul(torch.FloatTensor([math.pi/4,math.pi/3,0])))
     c.frame.set_location(torch.FloatTensor([0.5,0.2,-0.1]))
-    grid = c.get_pixel_grid( torch.LongTensor([10,10]) )
-    origin, dir = c.pix2ray( grid )
+    pixs = c.get_pixel_grid( torch.LongTensor([10,10]) )
+    pixs = c.sample_pixels( 10 )
+    origin, dir = c.pix2ray( pixs )
     p = plotter()
     p.init_figure()
     p.plot_ray(origin, dir)

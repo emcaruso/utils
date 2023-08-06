@@ -1,8 +1,8 @@
 import matplotlib.pyplot as plt
-from .geometry_pose import *
-from .geometry_euler import *
-from .geometry_sphere import *
-from .torch_utils import *
+from geometry_pose import *
+from geometry_euler import *
+from geometry_sphere import *
+from torch_utils import *
 
 class plotter():
 
@@ -88,7 +88,7 @@ class plotter():
 
 
     @staticmethod
-    def plot_ray(origin, dir, color='g', label='Rays'):
+    def plot_ray(origin, dir, color='c', label='Rays'):
         if plotter.ndim != origin.shape[-1]:
             plotter.init_figure(ndim=origin.shape[-1])
 
