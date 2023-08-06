@@ -18,7 +18,8 @@ class plotter():
             plotter.ax.set_ylabel('Y')
             plotter.ax.set_zlabel('Z')
             plotter.ax.set_title(title)
-            plotter.ax.set_aspect('equal')
+            plotter.ax.set_box_aspect([1.0, 1.0, 1.0])
+            # plotter.ax.set_aspect('equal')
 
     @staticmethod
     def show():
