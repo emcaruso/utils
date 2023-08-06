@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 from .geometry_pose import *
 from .geometry_euler import *
 from .geometry_sphere import *
+from .torch_utils import *
 
 class plotter():
 
@@ -26,7 +27,7 @@ class plotter():
         plt.show()
 
     @staticmethod
-    def plot_sphere(sphere, color='b', transparency=0.6):
+    def plot_sphere(sphere, color='b', transparency=0.3):
         if plotter.ndim != 3:
             plotter.init_figure(ndim=3)
 
@@ -34,6 +35,7 @@ class plotter():
         l = l.view( -1, l.shape[-1] )
         for i in range(l.shape[0]):
             theta, phi = np.mgrid[0.0:2.0 * np.pi:100j, 0.0:np.pi:50j]
+            sphere.radius = repeat_tensor_to_match_shape(sphere.radius, phi.shape)
             x = sphere.radius[i] * np.sin(phi) * np.cos(theta)
             y = sphere.radius[i] * np.sin(phi) * np.sin(theta)
             z = sphere.radius[i] * np.cos(phi)

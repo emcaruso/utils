@@ -12,6 +12,7 @@ from .plot import *
 class frame():
 
     def __init__(self, T=torch.eye(4, dtype=torch.float32)):
+        assert(T.shape==(4,4))
         self.T = T
 
     def location(self): return self.T[...,:3,-1]
