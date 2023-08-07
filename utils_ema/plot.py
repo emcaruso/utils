@@ -1,8 +1,8 @@
 import matplotlib.pyplot as plt
-from geometry_pose import *
-from geometry_euler import *
-from geometry_sphere import *
-from torch_utils import *
+from .geometry_pose import *
+from .geometry_euler import *
+from .geometry_sphere import *
+from .torch_utils import *
 
 class plotter():
 

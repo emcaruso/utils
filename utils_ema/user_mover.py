@@ -1,7 +1,7 @@
 import numpy as np
 import sys, os
 import torch
-from user_interface import *
+from .user_interface import *
 
 
 class mover():  
