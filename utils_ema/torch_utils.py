@@ -18,3 +18,18 @@ def repeat_tensor_to_match_shape( source_tensor, target_shape ):
         repeated_tensor = repeated_tensor.numpy()
 
     return repeated_tensor
+
+def collate_fn(batch_list):
+    # get list of dictionaries and returns input, ground_truth as dictionary for all batch instances
+    batch_list = zip(*batch_list)
+    all_parsed = []
+    for entry in batch_list:
+        if type(entry[0]) is dict:
+            # make them all into a new dict
+            ret = {}
+            for k in entry[0].keys():
+                ret[k] = torch.stack([obj[k] for obj in entry])
+            all_parsed.append(ret)
+        else:
+            all_parsed.append(torch.LongTensor(entry))
+    return tuple(all_parsed)

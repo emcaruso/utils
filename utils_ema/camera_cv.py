@@ -74,6 +74,10 @@ class Camera_cv():
         origin = repeat_tensor_to_match_shape( origin, dir.shape )
         return origin, dir
 
+    def collect_pixs_from_img( self, image, pix ):
+        assert(pix.dtype==torch.int32)
+        return image[pix[:,0], pix[:,1],...]
+
 class Camera_on_sphere(Camera_cv):
     
     def __init__(self, az_el, az_el_idx, K, frame, resolution, images=None, name="Unk Cam on sphere" ):
