@@ -2,9 +2,14 @@ import cv2
 import torch
 import sys, os
 
-from .geometry_pose import *
-from .plot import *
-from .torch_utils import *
+try:
+    from .geometry_pose import *
+    from .plot import *
+    from .torch_utils import *
+except:
+    from geometry_pose import *
+    from plot import *
+    from torch_utils import *
 
 
 class Camera_cv():
@@ -73,6 +78,10 @@ class Camera_on_sphere(Camera_cv):
     
     def __init__(self, az_el, az_el_idx, K, frame, resolution, images=None, name="Unk Cam on sphere" ):
         super().__init__(K=K, frame=frame, resolution=resolution, images=images, name=name)
+
+    def pix2eps( self, pix ):
+        assert( pix.dtype==torch.float32)
+        return -torch.arctan2((pix-(self.resolution/2)*self.millimeters_pixel_ratio), self.lens())
 
 
 if __name__=="__main__":

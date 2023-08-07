@@ -5,8 +5,13 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import math
 import sys, os
-from .geometry_euler import *
-from .plot import *
+
+try:
+    from .geometry_euler import *
+    from .plot import *
+except:
+    from geometry_euler import *
+    from plot import *
 
 
 class frame():

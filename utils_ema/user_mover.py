@@ -1,7 +1,11 @@
 import numpy as np
 import sys, os
 import torch
-from .user_interface import *
+
+try:
+    from .user_interface import *
+except:
+    from user_interface import *
 
 
 class mover():  
