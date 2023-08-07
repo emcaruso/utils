@@ -81,7 +81,8 @@ class Camera_on_sphere(Camera_cv):
 
     def pix2eps( self, pix ):
         assert( pix.dtype==torch.float32)
-        return -torch.arctan2((pix-(self.resolution/2)*self.millimeters_pixel_ratio), self.lens())
+        eps = -torch.arctan2(((pix-(self.resolution/2))*self.millimeters_pixel_ratio), self.lens())
+        return eps
 
 
 if __name__=="__main__":
