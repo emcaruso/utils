@@ -43,7 +43,7 @@ class Camera_cv():
         offs = (self.resolution/n)/2
         x_range = torch.linspace(offs[0], self.resolution[0]-offs[0], n[0])  # 5 points from -1 to 1
         y_range = torch.linspace(offs[1], self.resolution[1]-offs[1], n[1])  # 5 points from -1 to 1
-        X, Y = torch.meshgrid(x_range, y_range)
+        X, Y = torch.meshgrid(x_range, y_range, indexing="ij")
         grid = torch.cat( (X.unsqueeze(-1), Y.unsqueeze(-1)), dim=-1 )
         if longtens:
             return torch.trunc(grid).type(torch.LongTensor)
@@ -82,11 +82,13 @@ class Camera_on_sphere(Camera_cv):
     
     def __init__(self, az_el, az_el_idx, K, frame, resolution, images=None, name="Unk Cam on sphere" ):
         super().__init__(K=K, frame=frame, resolution=resolution, images=images, name=name)
+        self.alpha = az_el
 
     def pix2eps( self, pix ):
         assert( pix.dtype==torch.float32)
         eps = -torch.arctan2(((pix-(self.resolution/2))*self.millimeters_pixel_ratio), self.lens())
         return eps
+
 
 
 if __name__=="__main__":
