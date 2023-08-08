@@ -87,7 +87,6 @@ class Camera_on_sphere(Camera_cv):
     def __init__(self, az_el, az_el_idx, K, frame, resolution, images=None, name="Unk Cam on sphere" ):
         super().__init__(K=K, frame=frame, resolution=resolution, images=images, name=name)
         self.alpha = az_el
-        self.imgs_err = {}
 
     def pix2eps( self, pix ):
         assert( pix.dtype==torch.float32)
@@ -100,9 +99,23 @@ class Camera_on_sphere(Camera_cv):
         sample = { 'eps':eps, 'alpha':alpha }
         return sample
 
-    def render_ddf( self, ddf, device, wk=0, update_err=False ):
+    def sample_pixels_from_err_img( self, num_pixels, show=True ):
+        pixs = sample_from_image_pdf( self.images["err"], num_pixels )
+        
+        # show sampled pixels
+        if show:
+            show_pixs(pixs, self.images["err"].shape,wk=1)
+
+        pixs = torch.FloatTensor( pixs+0.5 )
+        return pixs
+
+
+
+    def render_ddf( self, ddf, device, wk=0, update_err=False, path_err="" , prt=False):
 
         for k,v in self.images.items():
+            if k=="err":
+                continue
             show_image( k+":_gt", v.numpy(), wk )
 
         with torch.no_grad():
@@ -113,6 +126,8 @@ class Camera_on_sphere(Camera_cv):
             count = 0
             errs = []
             for k,v in self.images.items():
+                if k=="err":
+                    continue
                 o = output[...,count:count+v.shape[-1]]
                 count += v.shape[-1]
                 errs.append(torch.abs(o-v))
@@ -120,12 +135,11 @@ class Camera_on_sphere(Camera_cv):
 
             if update_err:
                 err = torch.cat( errs, dim=-1 )
-                self.err = torch.norm(err, dim=-1)
-                show_image("err", self.err, wk)
-
-        a = sample_from_image_pdf( self.err, 1000 )
-        print(a)
-        exit(1)
+                err = torch.norm(err, dim=-1)
+                if prt:
+                    print("err: "+str(torch.sum(err).item()))
+                cv2.imwrite(path_err+"/"+self.name+".png", err.numpy()*255)
+                show_image("err", err, wk)
 
 if __name__=="__main__":
     # c = Camera_on_sphere()

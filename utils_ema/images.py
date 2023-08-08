@@ -16,19 +16,30 @@ def sample_from_image_pdf( probabilities, num_samples ):
         probabilities = probabilities.numpy()
 
     flattened_probs = probabilities.flatten()
-    remaining_probs = flattened_probs.copy()
-    sampled_pixels = []
-    
-    for _ in range(num_samples):
-        normalized_probs = remaining_probs / np.sum(remaining_probs)
-        cdf = np.cumsum(normalized_probs)
 
-        random_num = np.random.random()
-        sampled_pixel_flat = np.searchsorted(cdf, random_num, side='right')
-        sampled_pixel = np.unravel_index(sampled_pixel_flat, probabilities.shape)
-        sampled_pixels.append(sampled_pixel)
-        
-        # Remove the selected pixel's probability
-        remaining_probs[sampled_pixel_flat] = 0
+    # Generate random numbers for all samples at once
+    random_nums = np.random.random(num_samples)
     
-    return sampled_pixels
+    # Calculate CDF for the remaining probabilities
+    normalized_probs = flattened_probs / np.sum(flattened_probs)
+    cdf = np.cumsum(normalized_probs)
+    
+    # Find the indices of the sampled pixels
+    sampled_pixel_indices = np.searchsorted(cdf, random_nums, side='left')
+    sampled_pixel_indices = np.clip(sampled_pixel_indices, 0, len(cdf)-1)
+    
+    # Convert flattened indices to 2D indices
+    x, y = np.unravel_index(sampled_pixel_indices, probabilities.shape)
+
+    sampled_indices = np.stack((x, y), axis=-1)
+
+    return torch.LongTensor(sampled_indices)
+    
+
+def show_pixs( pixs, shape, wk=0 ):
+    img = np.zeros( shape )
+    img[pixs[:,0],pixs[:,1]]=1
+    if wk is not None:
+        cv2.imshow("shown pixs", img)
+        cv2.waitKey(wk)
+
