@@ -6,10 +6,14 @@ try:
     from .geometry_pose import *
     from .plot import *
     from .torch_utils import *
+    from .general import *
+    from .images import *
 except:
     from geometry_pose import *
     from plot import *
     from torch_utils import *
+    from general import *
+    from images import *
 
 
 class Camera_cv():
@@ -83,13 +87,43 @@ class Camera_on_sphere(Camera_cv):
     def __init__(self, az_el, az_el_idx, K, frame, resolution, images=None, name="Unk Cam on sphere" ):
         super().__init__(K=K, frame=frame, resolution=resolution, images=images, name=name)
         self.alpha = az_el
+        self.imgs_err = {}
 
     def pix2eps( self, pix ):
         assert( pix.dtype==torch.float32)
         eps = -torch.arctan2(((pix-(self.resolution/2))*self.millimeters_pixel_ratio), self.lens())
         return eps
 
+    def get_sample_from_pixs( self, pixs ):
+        eps = self.pix2eps( pixs )
+        alpha = repeat_tensor_to_match_shape(self.alpha, eps.shape)
+        sample = { 'eps':eps, 'alpha':alpha }
+        return sample
 
+    def render_ddf( self, ddf, device, wk=0, update_err=False ):
+
+        for k,v in self.images.items():
+            show_image( k+":_gt", v.numpy(), wk )
+
+        with torch.no_grad():
+            grid = self.get_pixel_grid()
+            sample = self.get_sample_from_pixs( grid )
+            sample = dict_to_device(sample, device)
+            output = ddf.forward( sample ).detach().cpu()
+            count = 0
+            errs = []
+            for k,v in self.images.items():
+                o = output[...,count:count+v.shape[-1]]
+                count += v.shape[-1]
+                errs.append(torch.abs(o-v))
+                show_image( k, o.numpy(), wk )
+
+            if update_err:
+                err = torch.cat( errs, dim=-1 )
+                self.err = torch.norm(err, dim=-1)
+                show_image("err", self.err, wk)
+
+        sample_from_image_pdf( probabilities, num_samples ):
 
 if __name__=="__main__":
     # c = Camera_on_sphere()

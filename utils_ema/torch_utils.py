@@ -33,3 +33,22 @@ def collate_fn(batch_list):
         else:
             all_parsed.append(torch.LongTensor(entry))
     return tuple(all_parsed)
+
+def dict_to_device( dict, device ):
+    for k,v in dict.items():
+        dict[k] = v.to(device)
+    return dict
+
+def print_cuda_mem_info():
+
+    # t = torch.cuda.get_device_properties(0).total_memory
+    # r = torch.cuda.memory_reserved(0)
+    # a = torch.cuda.memory_allocated(0)
+    # f = r-a  # free inside reserved
+    # print( "total memory: ", t*0.001, " KiB")
+    # print( "reserved memory: ", r*0.001, " KiB")
+    # print( "allocated memory: ", a*0.001, " KiB")
+    # print( "free inside reserved memory: ", f*0.001, " KiB")
+
+    print(torch.cuda.memory_summary())
+
