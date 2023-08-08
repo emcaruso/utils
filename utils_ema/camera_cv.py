@@ -123,7 +123,9 @@ class Camera_on_sphere(Camera_cv):
                 self.err = torch.norm(err, dim=-1)
                 show_image("err", self.err, wk)
 
-        sample_from_image_pdf( probabilities, num_samples ):
+        a = sample_from_image_pdf( self.err, 1000 )
+        print(a)
+        exit(1)
 
 if __name__=="__main__":
     # c = Camera_on_sphere()

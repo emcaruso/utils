@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import cv2
 
 
 def show_image( name, image, wk=0 ):
@@ -11,8 +12,8 @@ def show_image( name, image, wk=0 ):
 
 def sample_from_image_pdf( probabilities, num_samples ):
 
-    if( torch.is_tensor(image_prob) ):
-        imabe_prob = image_prob.numpy()
+    if( torch.is_tensor(probabilities) ):
+        probabilities = probabilities.numpy()
 
     flattened_probs = probabilities.flatten()
     remaining_probs = flattened_probs.copy()
@@ -21,13 +22,13 @@ def sample_from_image_pdf( probabilities, num_samples ):
     for _ in range(num_samples):
         normalized_probs = remaining_probs / np.sum(remaining_probs)
         cdf = np.cumsum(normalized_probs)
-        
+
         random_num = np.random.random()
-        sampled_pixel_index = np.searchsorted(cdf, random_num, side='right')
-        sampled_pixels.append(sampled_pixel_index)
+        sampled_pixel_flat = np.searchsorted(cdf, random_num, side='right')
+        sampled_pixel = np.unravel_index(sampled_pixel_flat, probabilities.shape)
+        sampled_pixels.append(sampled_pixel)
         
         # Remove the selected pixel's probability
-        remaining_probs[sampled_pixel_index] = 0
+        remaining_probs[sampled_pixel_flat] = 0
     
-    sampled_pixels = np.array(sampled_pixels).reshape(probabilities.shape)
     return sampled_pixels
