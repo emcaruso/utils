@@ -59,6 +59,16 @@ class user():
         user.detect_key()
         user.detect_mouse_movement()
 
+    @staticmethod
+    def while_till_q( func ):
+        user.detect_key()
+        while True:
+            if 'q' in user.keys:
+                break
+            else:
+                func()
+
+
 if __name__=="__main__":
     user.detect_mouse_and_key()
     while True:

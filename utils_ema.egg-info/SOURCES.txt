@@ -8,6 +8,7 @@ utils_ema/general.py
 utils_ema/geometry_euler.py
 utils_ema/geometry_pose.py
 utils_ema/geometry_sphere.py
+utils_ema/images.py
 utils_ema/plot.py
 utils_ema/torch_utils.py
 utils_ema/user_interface.py
