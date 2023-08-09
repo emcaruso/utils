@@ -84,7 +84,7 @@ class Camera_cv():
 
 class Camera_on_sphere(Camera_cv):
     
-    def __init__(self, az_el, az_el_idx, K, frame, resolution, images=None, name="Unk Cam on sphere" ):
+    def __init__(self, az_el, az_el_idx, K=torch.FloatTensor( [[30,0,18],[0,30,18],[0,0,1]]), frame=None, resolution=torch.LongTensor([700,700]), images=None, name="Unk Cam on sphere" ):
         super().__init__(K=K, frame=frame, resolution=resolution, images=images, name=name)
         self.alpha = az_el
 
