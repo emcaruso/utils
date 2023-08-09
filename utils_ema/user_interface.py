@@ -17,7 +17,7 @@ class user():
     def on_press(key):
         if key.char not in user.keys:
             user.keys.append(key.char)
-        time.sleep(user.dt)
+        # time.sleep(user.dt)
 
     @staticmethod
     def on_release(key):
@@ -39,7 +39,7 @@ class user():
             user.pos_delta = user.pos - user.center
             user.pos = user.center
             user.mouse_controller.position = tuple(user.center)
-            time.sleep(user.dt)
+            # time.sleep(user.dt)
         else:
             user.pos = np.array([x,y])
             user.pos_delta = None
