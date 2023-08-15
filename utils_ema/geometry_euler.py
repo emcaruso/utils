@@ -38,7 +38,11 @@ class eul():
         r31 = c1*s2*s3-c3*s1
         r32 = c1*c3*s2+s1*s3
         r33 = c1*c2
-        rot = torch.FloatTensor( [[r11, r12, r13],[r21, r22, r23],[r31, r32, r33]]  )
+        r1 = torch.cat( (r11.unsqueeze(-1), r12.unsqueeze(-1), r13.unsqueeze(-1)), dim =-1)
+        r2 = torch.cat( (r21.unsqueeze(-1), r22.unsqueeze(-1), r23.unsqueeze(-1)), dim =-1)
+        r3 = torch.cat( (r31.unsqueeze(-1), r32.unsqueeze(-1), r33.unsqueeze(-1)), dim =-1)
+        rot = torch.cat( (r1.unsqueeze(-1), r2.unsqueeze(-1), r3.unsqueeze(-1)), dim =-1)
+        rot = rot.to(self.e.device)
         return rot
         
     def eul2rot_YX(self): # Y=azimuth X=elevation (no roll)
