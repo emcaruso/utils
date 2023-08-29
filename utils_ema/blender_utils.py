@@ -5,6 +5,8 @@ except:
 from contextlib import contextmanager
 import os
 import sys
+import torch
+import numpy as np
 
 @contextmanager
 def stdout_redirected(to=os.devnull):
@@ -161,6 +163,24 @@ def generate_camera_from_intrinsics(cam_dict, name):
     camera_data.shift_y = (cy - res_y/2)/(res_y)*(1/asp_ratio)
     return camera_object, camera_data
     
+def generate_intrinsics_from_camera(cam):
+    camera_data = cam.data
+    lens = camera_data.lens
+    sw = camera_data.sensor_width
+    res_x = bpy.context.scene.render.resolution_x 
+    res_y = bpy.context.scene.render.resolution_y 
+    K = torch.zeros((3,3))
+    K[0,0] = lens*(res_x/sw)
+    K[1,1] = lens*(res_x/sw)
+    K[0,2] = res_x/2
+    K[1,2] = res_y/2
+    # camera_data.shift_x = -(cx - res_x/2)/(res_x)
+    # camera_data.shift_y = (cy - res_y/2)/(res_y)*(1/asp_ratio)
+    return K
+    
+
+
+
 
 
 
