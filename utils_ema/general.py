@@ -17,14 +17,21 @@ def dump_parsed_args( path, args ):
     with open( path, 'w') as f:
         json.dump(args.__dict__, f, indent=2)
 
-def load_parsed_args_as_dict( path):
-    with open(path, 'r') as f:
-        dict = json.load(f)
-    return dict
+def dump_dict( path, dict ):
+    with open( path, 'w') as f:
+        json.dump(dict, f, indent=2)
+
+def dump_parsed_args( path, args ):
+    return dump_dict( path, args.__dict__ )
 
 def load_parsed_args_as_namespace( path):
     dict = load_parsed_args_as_dict( path)
     return argparse.Namespace(**dict)
+
+def load_parsed_args_as_dict( path):
+    with open(path, 'r') as f:
+        dict = json.load(f)
+    return dict
 
 ##### NPZ ######
 
