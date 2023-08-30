@@ -2,6 +2,7 @@ import json
 import argparse
 import cv2
 import torch
+import numpy as np
 
 ##### PRINT ######
 
@@ -40,3 +41,8 @@ def loadNpz( filepath ):
         return np.load(filepath)
     return None
 
+def is_grayscale( image ):
+    assert(image.shape[-1]==3)
+    b1 = np.max(np.abs(image[...,0]-image[...,1]))==0
+    b2 = np.max(np.abs(image[...,0]-image[...,2]))==0
+    return b1 and b2

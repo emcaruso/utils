@@ -31,6 +31,66 @@ class Intrinsics():
     def size(self): return torch.cat( ( (self.cx()*2).unsqueeze(-1), (self.cy()*2).unsqueeze(-1) ) , dim=-1)
     def lens_squeezed(self): return (self.fx()+self.fy())/2
 
+class View():
+    def __init__(self, intrinsics:Intrinsics = Intrinsics(), frame:Frame = Frame()):
+        self.name = name
+        self.frame = frame
+        self.images = images
+        self.intr = intrinsics
+        if self.intr.units != self.frame.units: raise ValueError("frame units ("+self.frame.units+") and intrinsics units ("+self.intr.units+") must be the same")
+    
+    def show_image(self,img_name="rgb", wk=0):
+        image = self.images[img_name]
+        if torch.is_tensor(image):
+            image = image.numpy()
+        cv2.imshow(img_name, image)
+        cv2.waitKey(wk)
+
+    def show_images(self, wk=0):
+        for name in self.images.keys():
+            self.show_image(name, wk)
+
+    def get_pixel_grid(self, n = None, longtens=False):
+        if n is None:
+            n=self.intr.resolution
+        offs = (self.intr.resolution/n)/2
+        x_range = torch.linspace(offs[0], self.intr.resolution[0]-offs[0], n[0])  # 5 points from -1 to 1
+        y_range = torch.linspace(offs[1], self.intr.resolution[1]-offs[1], n[1])  # 5 points from -1 to 1
+        X, Y = torch.meshgrid(x_range, y_range, indexing="ij")
+        grid = torch.cat( (X.unsqueeze(-1), Y.unsqueeze(-1)), dim=-1 )
+        if longtens:
+            return torch.trunc(grid).type(torch.LongTensor)
+        return grid
+
+    def sample_pixels( self, num_pixels, longtens=False ):
+        pixels_idxs = torch.reshape(self.get_pixel_grid( ), (-1,len(self.intr.resolution)))
+        perm = torch.randperm(pixels_idxs.shape[0])
+        n = min(pixels_idxs.shape[0],num_pixels )
+        sampl_image_idxs = pixels_idxs[perm][:n]
+        return sampl_image_idxs
+
+    def get_all_rays(self):
+        grid = c.get_pixel_grid( )
+        origin, dir = c.pix2ray( grid )
+        return origin, dir
+
+    def pix2dir( self, pix ):
+        pix = pix*self.intr.unit_pixel_ratio # pixels to units
+        ndc = (pix - self.intr.size()/2) / self.intr.lens()
+        dir = torch.cat( (ndc, torch.ones( list(ndc.shape[:-1])+[1] ) ), -1 )
+        dir_norm = torch.nn.functional.normalize( dir, dim=-1 )
+        return torch.matmul(dir_norm, self.frame.rotation().T)
+
+    def pix2ray( self, pix ):
+        dir = self.pix2dir( pix )
+        origin = self.frame.location()
+        origin = repeat_tensor_to_match_shape( origin, dir.shape )
+        return origin, dir
+
+    def collect_pixs_from_img( self, image, pix ):
+        assert(pix.dtype==torch.int32)
+        return image[pix[:,0], pix[:,1],...]
+
 
 class Camera_cv():
 
