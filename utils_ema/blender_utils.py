@@ -172,11 +172,11 @@ def generate_intrinsics_from_camera(cam):
     res_x = bpy.context.scene.render.resolution_x 
     res_y = bpy.context.scene.render.resolution_y 
     K = torch.zeros((3,3))
-    K[0,0] = lens*(res_x/sw)
-    K[1,1] = lens*(res_x/sw)
-    K[0,2] = res_x/2
-    K[1,2] = res_y/2
-    intrinsics = Intrinsics(K=K,units='millimeters')
+    K[0,0] = lens*0.001
+    K[1,1] = lens*0.001
+    K[0,2] = (res_x/2)*(sw*0.001/res_x)
+    K[1,2] = (res_y/2)*(sw*0.001/res_x)
+    intrinsics = Intrinsics(K=K, resolution=torch.LongTensor([res_x,res_y]), units='meters')
     # camera_data.shift_x = -(cx - res_x/2)/(res_x)
     # camera_data.shift_y = (cy - res_y/2)/(res_y)*(1/asp_ratio)
     return intrinsics   
