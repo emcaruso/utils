@@ -42,8 +42,15 @@ class Camera_cv():
         if self.intr.units != self.frame.units: raise ValueError("frame units ("+self.frame.units+") and intrinsics units ("+self.intr.units+") must be the same")
     
     def show_image(self,img_name="rgb", wk=0):
-        cv2.imshow(img_name, self.images[img_name])
+        image = self.images[img_name]
+        if torch.is_tensor(image):
+            image = image.numpy()
+        cv2.imshow(img_name, image)
         cv2.waitKey(wk)
+
+    def show_images(self, wk=0):
+        for name in self.images.keys():
+            self.show_image(name, wk)
 
     def get_pixel_grid(self, n = None, longtens=False):
         if n is None:
