@@ -14,11 +14,12 @@ except:
     from plot import *
 
 
-class frame():
+class Frame():
 
-    def __init__(self, T=torch.eye(4, dtype=torch.float32)):
+    def __init__(self, T=torch.eye(4, dtype=torch.float32), units='meters'):
         assert(T.shape==(4,4))
         self.T = T
+        self.units = units
 
     def location(self): return self.T[...,:3,-1]
     def rotation(self): return self.T[...,:3,:3]
@@ -32,7 +33,7 @@ class frame():
     def move_location(self, v): self.set_location(self.location()+v)
 
 if __name__ == "__main__":
-    p = frame()
+    p = Frame()
     pl = plotter()
 
     # for i in np.arange(0,math.pi/4, 0.1):

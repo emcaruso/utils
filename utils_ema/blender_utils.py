@@ -8,6 +8,8 @@ import sys
 import torch
 import numpy as np
 
+from utils_ema.camera_cv import *
+
 @contextmanager
 def stdout_redirected(to=os.devnull):
     '''
@@ -174,9 +176,10 @@ def generate_intrinsics_from_camera(cam):
     K[1,1] = lens*(res_x/sw)
     K[0,2] = res_x/2
     K[1,2] = res_y/2
+    intrinsics = Intrinsics(K=K,units='millimeters')
     # camera_data.shift_x = -(cx - res_x/2)/(res_x)
     # camera_data.shift_y = (cy - res_y/2)/(res_y)*(1/asp_ratio)
-    return K
+    return intrinsics   
     
 
 

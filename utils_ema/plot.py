@@ -81,9 +81,9 @@ class plotter():
         assert(plotter.ndim == 3)
         o = camera.frame.location()
         c00 = o+camera.pix2dir(torch.LongTensor([0,0]))*size
-        c01 = o+camera.pix2dir(torch.LongTensor([0,camera.resolution[1]]))*size
-        c10 = o+camera.pix2dir(torch.LongTensor([camera.resolution[0],0]))*size
-        c11 = o+camera.pix2dir(torch.LongTensor([camera.resolution[0],camera.resolution[1]]))*size
+        c01 = o+camera.pix2dir(torch.LongTensor([0,camera.intr.resolution[1]]))*size
+        c10 = o+camera.pix2dir(torch.LongTensor([camera.intr.resolution[0],0]))*size
+        c11 = o+camera.pix2dir(torch.LongTensor([camera.intr.resolution[0],camera.intr.resolution[1]]))*size
         plotter.plot_line(o,c00)
         plotter.plot_line(o,c10)
         plotter.plot_line(o,c01)

@@ -15,19 +15,14 @@ except:
     from general import *
     from images import *
 
-
-class Camera_cv():
-
-    def __init__(self, K=torch.FloatTensor( [[30,0,18],[0,30,18],[0,0,1]]), frame=frame(), resolution=torch.LongTensor([700,700]), images=None, name="Unk Cam" ):
-        self.name = name
-        self.frame = frame
-        self.images = images
+class Intrinsics():
+    def __init__(self, K=torch.FloatTensor([[0.030,0,0.018],[0,0.030,0.018],[0,0,1]]), resolution=torch.LongTensor([700,700]), units:str='meters'):
+        self.K = K
+        self.units = units
         self.resolution = resolution
-        self.K = K # in millimeters
-        self.meter_pixel_ratio = self.size()*0.001/self.resolution
-        self.millimeters_pixel_ratio = self.size()/self.resolution
-    
-    
+        self.pixel_unit_ratio = resolution[0]/self.size()[0]
+        self.unit_pixel_ratio = self.size()[0]/resolution[0]
+
     def cx(self): return self.K[...,0,2]
     def cy(self): return self.K[...,1,2]
     def fx(self): return self.K[...,0,0]
@@ -35,18 +30,29 @@ class Camera_cv():
     def lens(self): return torch.cat( (self.fx().unsqueeze(-1), self.fy().unsqueeze(-1)) , dim=-1)
     def size(self): return torch.cat( ( (self.cx()*2).unsqueeze(-1), (self.cy()*2).unsqueeze(-1) ) , dim=-1)
     def lens_squeezed(self): return (self.fx()+self.fy())/2
+
+
+
+
+class Camera_cv():
+
+    def __init__(self, intrinsics:Intrinsics = Intrinsics(), frame:Frame = Frame(), images=None, name="Unk Cam"):
+        self.name = name
+        self.frame = frame
+        self.images = images
+        self.intr = intrinsics
+        if self.intr.units != self.frame.units: raise ValueError("frame units and intrinsics units must be the same")
+    
     def show_image(self,img_name="rgb", wk=0):
         cv2.imshow(img_name, self.images[img_name])
         cv2.waitKey(wk)
-        # plt.imshow(self.images[img_name])
-        # plt.show()
 
     def get_pixel_grid(self, n = None, longtens=False):
         if n is None:
-            n=self.resolution
-        offs = (self.resolution/n)/2
-        x_range = torch.linspace(offs[0], self.resolution[0]-offs[0], n[0])  # 5 points from -1 to 1
-        y_range = torch.linspace(offs[1], self.resolution[1]-offs[1], n[1])  # 5 points from -1 to 1
+            n=self.intr.resolution
+        offs = (self.intr.resolution/n)/2
+        x_range = torch.linspace(offs[0], self.intr.resolution[0]-offs[0], n[0])  # 5 points from -1 to 1
+        y_range = torch.linspace(offs[1], self.intr.resolution[1]-offs[1], n[1])  # 5 points from -1 to 1
         X, Y = torch.meshgrid(x_range, y_range, indexing="ij")
         grid = torch.cat( (X.unsqueeze(-1), Y.unsqueeze(-1)), dim=-1 )
         if longtens:
@@ -54,7 +60,7 @@ class Camera_cv():
         return grid
 
     def sample_pixels( self, num_pixels, longtens=False ):
-        pixels_idxs = torch.reshape(self.get_pixel_grid( ), (-1,len(self.resolution)))
+        pixels_idxs = torch.reshape(self.get_pixel_grid( ), (-1,len(self.intr.resolution)))
         perm = torch.randperm(pixels_idxs.shape[0])
         n = min(pixels_idxs.shape[0],num_pixels )
         sampl_image_idxs = pixels_idxs[perm][:n]
@@ -66,8 +72,8 @@ class Camera_cv():
         return origin, dir
 
     def pix2dir( self, pix ):
-        pix = pix*self.millimeters_pixel_ratio # pixels to millimeters
-        ndc = (pix - self.size()/2) / self.lens()
+        pix = pix*self.intr.unit_pixel_ratio # pixels to millimeters
+        ndc = (pix - self.intr.size()/2) / self.intr.lens()
         dir = torch.cat( (ndc, torch.ones( list(ndc.shape[:-1])+[1] ) ), -1 )
         dir_norm = torch.nn.functional.normalize( dir, dim=-1 )
         return torch.matmul(dir_norm, self.frame.rotation().T)
@@ -90,7 +96,7 @@ class Camera_on_sphere(Camera_cv):
 
     def pix2eps( self, pix ):
         assert( pix.dtype==torch.float32)
-        eps = -torch.arctan2(((pix-(self.resolution/2))*self.millimeters_pixel_ratio), self.lens())
+        eps = -torch.arctan2(((pix-(self.intr.resolution/2))*self.millimeters_pixel_ratio), self.lens())
         return eps
 
     def get_sample_from_pixs( self, pixs ):
@@ -113,10 +119,10 @@ class Camera_on_sphere(Camera_cv):
 
     def render_ddf( self, ddf, device, wk=0, update_err=False, path_err="" , prt=False):
 
-        for k,v in self.images.items():
-            if k=="err":
-                continue
-            show_image( k+":_gt", v.numpy(), wk )
+        # for k,v in self.images.items():
+        #     if k=="err":
+        #         continue
+        #     show_image( k+":_gt", v.numpy(), wk )
 
         with torch.no_grad():
             grid = self.get_pixel_grid()
@@ -148,11 +154,110 @@ if __name__=="__main__":
     c.frame.rotate_euler(eul(torch.FloatTensor([math.pi/4,math.pi/3,0])))
     c.frame.set_location(torch.FloatTensor([0.5,0.2,-0.1]))
     pixs = c.get_pixel_grid( torch.LongTensor([10,10]) )
-    pixs = c.sample_pixels( 10 )
+    # pixs = c.sample_pixels( 10 )
     origin, dir = c.pix2ray( pixs )
     p = plotter()
     p.init_figure()
     p.plot_ray(origin, dir)
     p.plot_cam(c, 1)
     p.plot_frame(c.frame)
+    p.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# class Intrinsics():
+#     def __init__(self, K=torch.FloatTensor([[30,0,18],[0,30,18],[0,0,1]]), resolution=torch.LongTensor([700,700]), units:str='millimeters'):
+#         self.K = K
+#         self.units = units
+#         self.resolution = resolution
+#     def cx(self): return self.K[...,0,2]
+#     def cy(self): return self.K[...,1,2]
+#     def fx(self): return self.K[...,0,0]
+#     def fy(self): return self.K[...,1,1]
+#     def lens(self): return torch.cat( (self.fx().unsqueeze(-1), self.fy().unsqueeze(-1)) , dim=-1)
+#     def size(self): return torch.cat( ( (self.cx()*2).unsqueeze(-1), (self.cy()*2).unsqueeze(-1) ) , dim=-1)
+#     def lens_squeezed(self): return (self.fx()+self.fy())/2
+
+#     def pixel_unit_ratio(self):
+#         return resolution[0]/self.size()[0]
+#     def unit_pixel_ratio(self):
+#         return self.size()[0]/resolution[0]
+
+
+class Camera_cv():
+
+    def __init__(self, intrinsics:Intrinsics = Intrinsics(), frame:Frame = Frame(), images=None, name="Unk Cam"):
+        self.name = name
+        self.frame = frame
+        self.images = images
+        self.intr = intrinsics
+        if self.intr.units != self.frame.units: raise ValueError("frame units and intrinsics units must be the same")
+
+    def show_image(self,img_name="rgb", wk=0):
+        cv2.imshow(img_name, self.images[img_name])
+        cv2.waitKey(wk)
+
+    def get_pixel_grid(self, n = None):
+        if n is None:
+            n=self.intr.resolution
+        offs = (self.intr.resolution/n)/2
+        x_range = torch.linspace(offs[0], self.intr.resolution[0]-offs[0], n[0])  # 5 points from -1 to 1
+        y_range = torch.linspace(offs[1], self.intr.resolution[1]-offs[1], n[1])  # 5 points from -1 to 1
+        X, Y = torch.meshgrid(x_range, y_range)
+        grid = torch.cat( (X.unsqueeze(-1), Y.unsqueeze(-1)), dim=-1 )
+        return grid
+
+    def get_all_rays(self):
+        grid = c.get_pixel_grid( )
+        origin, dir = c.pix2ray( grid )
+        return origin, dir
+
+    def pix2dir( self, pix ):
+        pix = pix*(self.intr.unit_pixel_ratio) # pixels to frame and intrinsics units
+        ndc = (pix - self.size()/2) / self.lens()
+        dir = torch.cat( (ndc, torch.ones( list(ndc.shape[:-1])+[1] ) ), -1 )
+        dir_norm = torch.nn.functional.normalize( dir, dim=-1 )
+        return torch.matmul(dir_norm, self.frame.rotation().T)
+
+    def pix2ray( self, pix ):
+        dir = self.pix2dir( pix )
+        origin = self.frame.location()
+        origin = repeat_tensor_to_match_shape( origin, dir.shape )
+        return origin, dir
+
+    
+
+
+class Camera_on_sphere(Camera_cv):
+    
+    def __init__(self, az_el, az_el_idx, K, frame, resolution, images=None, name="Unk Cam on sphere" ):
+        super().__init__(K=K, frame=frame, resolution=resolution, images=images, name=name)
+
+
+if __name__=="__main__":
+    # c = Camera_on_sphere()
+    c = Camera_cv()
+    c.frame.rotate_euler(eul(torch.FloatTensor([math.pi/4,math.pi/3,0])))
+    c.frame.set_location(torch.FloatTensor([0.5,0.2,-0.1]))
+    grid = c.get_pixel_grid( torch.LongTensor([10,10]) )
+    print(grid)
+    origin, dir = c.pix2ray( grid )
+    p = plotter()
+    p.init_figure()
+    p.plot_ray(origin, dir)
+    p.plot_cam(c, 1)
+    p.plot_Frame(c.frame)
     p.show()
