@@ -8,14 +8,16 @@ try:
     from .torch_utils import *
     from .general import *
     from .images import *
-    from .diff_renderer import *
+    try: from .diff_renderer import *
+    except: pass
 except:
     from geometry_pose import *
     from plot import *
     from torch_utils import *
     from general import *
     from images import *
-    from diff_renderer import *
+    try: from diff_renderer import *
+    except: pass
 
 class Camera_opencv:
     """ Camera in OpenCV format.
@@ -155,7 +157,7 @@ class Camera_cv():
 
     def get_overlayed_image( self, mesh, image_name='rgb' ):
         image = get_image(image_name)
-        gbuffer = Renderer.render(self, mesh, ["mask"], with_antialiasing=True):
+        gbuffer = Renderer.render(self, mesh, ["mask"], with_antialiasing=True)
         overlayed = (gbuffer["mask"] + 1.0) * image
         overlayed = overlayed.clamp_(min=0.0, max=1.0).cpu()
         return overlayed
