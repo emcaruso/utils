@@ -40,7 +40,7 @@ class plotter():
         )
 
     @classmethod
-    def plot_points(cls, points, opacity=1, color='red', name=''):
+    def plot_points(cls, points, opacity=1, color='red'):
         if torch.is_tensor(points): points=points.numpy()
         points = go.Scatter3d(
             x = points[..., 0],
@@ -48,7 +48,6 @@ class plotter():
             z = points[..., 2],
             opacity=opacity,  # Set the transparency level (0 to 1, where 0 is fully transparent and 1 is fully opaque)
             mode = 'markers',
-            name = name,
             marker=dict( color=color )
         )   
         cls.points.append(points)
@@ -62,7 +61,7 @@ class plotter():
 
 
     @classmethod
-    def plot_sphere(cls, sphere, opacity=0.7, colorscale='Viridis', name='' ):
+    def plot_sphere(cls, sphere, opacity=0.7, colorscale='Viridis' ):
         l = sphere.frame.location()
         l = l.view( -1, l.shape[-1] )
         for i in range(l.shape[0]):
@@ -81,12 +80,11 @@ class plotter():
                 opacity=opacity,  # Set the transparency level (0 to 1, where 0 is fully transparent and 1 is fully opaque)
                 colorscale=colorscale,  # Choose a colorscale
                 showscale=False,  # Hide the color scale bar
-                name = name,
             )   
             cls.surfaces.append(surface)
 
     @classmethod
-    def plot_line(cls,start, end, opacity=1, color='blue', width=3, name='' ):
+    def plot_line(cls,start, end, opacity=1, color='blue', width=3 ):
         assert(len(start)==len(end))
         if torch.is_tensor(start): start=start.numpy()
         if torch.is_tensor(end): end=end.numpy()
@@ -102,7 +100,6 @@ class plotter():
                 z=z,
                 mode='lines',  # Use 'lines' mode for line segments
                 line=dict(color=color, width=width),  # Set line color and width
-                name='Line Segments'
             )
             cls.lines.append(line)
             
@@ -119,7 +116,7 @@ class plotter():
         cls.plot_line(o,c01,color='magenta')
         cls.plot_line(o,c11,color='magenta')
         cls.plot_line(c00,c01,color='magenta')
-        cls.plot_line(c00,c10, width=5, color='darkmagenta')
+        cls.plot_line(c00,c10, width=6, color='darkmagenta')
         cls.plot_line(c11,c01,color='magenta')
         cls.plot_line(c11,c10,color='magenta')
         cls.plot_points(o, color='darkmagenta')
@@ -143,6 +140,19 @@ class plotter():
         cls.plot_line(frame.location(),a_x, color='red')
         cls.plot_line(frame.location(),a_y, color='green')
         cls.plot_line(frame.location(),a_z, color='blue')
+
+    @classmethod
+    def plot_mesh(cls, vertices, faces, opacity=1, color='lightblue' ):
+        mesh_trace = go.Mesh3d(
+            x=vertices[..., 0],
+            y=vertices[..., 1],
+            z=vertices[..., 2],
+            i=faces[..., 0],
+            j=faces[..., 1],
+            k=faces[..., 2],
+            opacity=opacity,
+            color=color
+        )
 
 
 
