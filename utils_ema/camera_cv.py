@@ -15,6 +15,38 @@ except:
     from general import *
     from images import *
 
+class Camera_opencv:
+    """ Camera in OpenCV format.
+        
+    Args:
+        K (tensor): Camera matrix with intrinsic parameters (3x3)
+        R (tensor): Rotation matrix (3x3)
+        t (tensor): translation vector (3)
+        device (torch.device): Device where the matrices are stored
+    """
+
+    def __init__(self, K, R, t, device='cpu'):
+        self.K = K.to(device) if torch.is_tensor(K) else torch.FloatTensor(K).to(device)
+        self.R = R.to(device) if torch.is_tensor(R) else torch.FloatTensor(R).to(device)
+        self.t = t.to(device) if torch.is_tensor(t) else torch.FloatTensor(t).to(device)
+        self.device = device
+
+    def to(self, device="cpu"):
+        self.K = self.K.to(device)
+        self.R = self.R.to(device)
+        self.t = self.t.to(device)
+        self.device = device
+        return self
+
+    @property
+    def center(self):
+        return -self.R.t() @ self.t
+
+    @property
+    def P(self):
+        return self.K @ torch.cat([self.R, self.t.unsqueeze(-1)], dim=-1)
+
+
 class Intrinsics():
     def __init__(self, K=torch.FloatTensor([[0.030,0,0.018],[0,0.030,0.018],[0,0,1]]), resolution=torch.LongTensor([700,700]), units:str='meters'):
         self.K = K
@@ -31,10 +63,10 @@ class Intrinsics():
     def size(self): return torch.cat( ( (self.cx()*2).unsqueeze(-1), (self.cy()*2).unsqueeze(-1) ) , dim=-1)
     def lens_squeezed(self): return (self.fx()+self.fy())/2
 
-
 class Camera_cv():
 
-    def __init__(self, intrinsics:Intrinsics = Intrinsics(), frame:Frame = Frame(), image_paths=None, name="Unk Cam", load_images=False):
+    def __init__(self, intrinsics:Intrinsics = Intrinsics(), frame:Frame = Frame(), image_paths=None, name="Unk Cam", load_images=False, device='cpu'):
+        self.device=device
         self.name = name
         self.frame = frame
         self.images = {}
@@ -42,6 +74,11 @@ class Camera_cv():
         self.intr = intrinsics
         if self.intr.units != self.frame.units: raise ValueError("frame units ("+self.frame.units+") and intrinsics units ("+self.intr.units+") must be the same")
         if load_images: self.load_images()
+
+    def get_camera_opencv(device=None):
+        if device is None:
+            device = self.device
+        return Camera_opencv(self.K, self.frame.rotation, self.frame.location, device)
 
     def load_images(self):
         del self.images
