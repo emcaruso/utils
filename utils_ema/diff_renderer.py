@@ -12,13 +12,13 @@ class Renderer:
         far (float): Far plane distance
     """
 
-    def __init__(self, device, near=1, far=1000):
-        self.glctx = dr.RasterizeGLContext()
-        self.device = device
-        self.near = near
-        self.far = far
+    cls.glctx = dr.RasterizeGLContext()
+    cls.near = 1
+    cls.far = 1000
 
-    def set_near_far(self, views, samples, epsilon=0.1):
+
+    @classmethod
+    def set_near_far(cls, views, samples, epsilon=0.1):
         """ Automatically adjust the near and far plane distance
         """
 
@@ -30,8 +30,8 @@ class Renderer:
             maxs.append(samples_projected[...,2].max())
 
         near, far = min(mins), max(maxs)
-        self.near = near - (near * epsilon)
-        self.far = far + (far * epsilon)
+        cls.near = near - (near * epsilon)
+        cls.far = far + (far * epsilon)
 
     @staticmethod
     def transform_pos(mtx, pos):
@@ -77,7 +77,8 @@ class Renderer:
         Rt = gl_transform @ Rt
         return projection_matrix @ Rt
 
-    def render(self, views, mesh, channels, with_antialiasing=True):
+    @classmethod
+    def render(cls, camera, mesh, channels, with_antialiasing=True):
         """ Render G-buffers from a set of views.
 
         Args:
@@ -85,32 +86,29 @@ class Renderer:
         """
 
         # TODO near far should be passed by view to get higher resolution in depth
-        gbuffers = []
-        for i, view in enumerate(views):
-            gbuffer = {}
+        gbuffer = {}
 
-            # Rasterize only once
-            P = Renderer.to_gl_camera(view.camera, view.resolution, n=self.near, f=self.far)
-            pos = Renderer.transform_pos(P, mesh.vertices)
-            idx = mesh.indices.int()
-            rast, rast_out_db = dr.rasterize(self.glctx, pos, idx, resolution=view.resolution)
+        # Rasterize only once
+        P = Renderer.to_gl_camera(camera.Camera_opencv, camera.resolution, n=cls.near, f=cls.far)
+        pos = Renderer.transform_pos(P, mesh.vertices)
+        idx = mesh.indices.int()
+        rast, rast_out_db = dr.rasterize(cls.glctx, pos, idx, resolution=view.resolution)
 
-            # Collect arbitrary output variables (aovs)
-            if "mask" in channels:
-                mask = torch.clamp(rast[..., -1:], 0, 1)
-                gbuffer["mask"] = dr.antialias(mask, rast, pos, idx)[0] if with_antialiasing else mask[0]
+        # Collect arbitrary output variables (aovs)
+        if "mask" in channels:
+            mask = torch.clamp(rast[..., -1:], 0, 1)
+            gbuffer["mask"] = dr.antialias(mask, rast, pos, idx)[0] if with_antialiasing else mask[0]
 
-            if "position" in channels or "depth" in channels:
-                position, _ = dr.interpolate(mesh.vertices[None, ...], rast, idx)
-                gbuffer["position"] = dr.antialias(position, rast, pos, idx)[0] if with_antialiasing else position[0]
+        if "position" in channels or "depth" in channels:
+            position, _ = dr.interpolate(mesh.vertices[None, ...], rast, idx)
+            gbuffer["position"] = dr.antialias(position, rast, pos, idx)[0] if with_antialiasing else position[0]
 
-            if "normal" in channels:
-                normal, _ = dr.interpolate(mesh.vertex_normals[None, ...], rast, idx)
-                gbuffer["normal"] = dr.antialias(normal, rast, pos, idx)[0] if with_antialiasing else normal[0]
+        if "normal" in channels:
+            normal, _ = dr.interpolate(mesh.vertex_normals[None, ...], rast, idx)
+            gbuffer["normal"] = dr.antialias(normal, rast, pos, idx)[0] if with_antialiasing else normal[0]
 
-            if "depth" in channels:
-                gbuffer["depth"] = view.project(gbuffer["position"], depth_as_distance=True)[..., 2:3]
+        if "depth" in channels:
+            gbuffer["depth"] = view.project(gbuffer["position"], depth_as_distance=True)[..., 2:3]
 
-            gbuffers += [gbuffer]
-
-        return gbuffers
+        return gbuffer
+    
