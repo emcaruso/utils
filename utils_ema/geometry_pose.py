@@ -17,7 +17,7 @@ except:
 class Frame():
 
     def __init__(self, T=torch.eye(4, dtype=torch.float32), units='meters'):
-        assert(T.shape==(4,4))
+        assert(T.shape[-2:]==(4,4))
         self.T = T
         self.units = units
 
@@ -31,6 +31,9 @@ class Frame():
     def rotate(self, rot): self.set_rotation(torch.matmul(self.rotation(), rot))
     def rotate_euler(self, e): self.rotate(e.eul2rot())
     def move_location(self, v): self.set_location(self.location()+v)
+    def transform(self, T_tr):
+        self.rotate(T_tr[...,:3,:3])
+        self.set_location( T_tr[...,:3,:3]@self.location()+T_tr[...,:3,-1])
 
 if __name__ == "__main__":
     p = Frame()

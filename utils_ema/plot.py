@@ -1,4 +1,4 @@
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 
 try:
     from .geometry_pose import *
@@ -14,31 +14,55 @@ except:
 
 class plotter():
 
-    @staticmethod
-    def init_figure( ndim = 3, limit=1, title = "plot", figsize=(10,10) ):
-        plotter.ndim = ndim
-        if ndim==3:
-            plotter.fig = plt.figure(figsize=figsize)
-            plotter.ax = plotter.fig.add_subplot(111, projection='3d')
-            plotter.ax.set_xlim([-limit, limit])
-            plotter.ax.set_ylim([-limit, limit])
-            plotter.ax.set_zlim([-limit, limit])
-            plotter.ax.set_xlabel('X')
-            plotter.ax.set_ylabel('Y')
-            plotter.ax.set_zlabel('Z')
-            plotter.ax.set_title(title)
-            plotter.ax.set_box_aspect([1.0, 1.0, 1.0])
-            # plotter.ax.set_aspect('equal')
+    points = []
+    surfaces = []
+    lines = []
+    colorscale='Viridis',  # Choose a colorscale
+    arrows = []
+    meshes = []
+    layout: go.Layout = None 
 
-    @staticmethod
-    def show():
-        plt.show()
+    @classmethod
+    def init_figure(cls, range=[-1,1], title='3D plot'):
+        # Create a layout
+        cls.layout = go.Layout(
+            title=title,
+            scene=dict(
+                xaxis_title='X Axis',
+                yaxis_title='Y Axis',
+                zaxis_title='Z Axis',
+                xaxis_range=range,
+                yaxis_range=range,
+                zaxis_range=range,
+                aspectmode='cube'  # Set aspect ratio to cube
 
-    @staticmethod
-    def plot_sphere(sphere, color='b', transparency=0.3):
-        if plotter.ndim != 3:
-            plotter.init_figure(ndim=3)
+            )
+        )
 
+    @classmethod
+    def plot_points(cls, points, opacity=1, color='red', name=''):
+        if torch.is_tensor(points): points=points.numpy()
+        points = go.Scatter3d(
+            x = points[..., 0],
+            y = points[..., 1],
+            z = points[..., 2],
+            opacity=opacity,  # Set the transparency level (0 to 1, where 0 is fully transparent and 1 is fully opaque)
+            mode = 'markers',
+            name = name,
+            marker=dict( color=color )
+        )   
+        cls.points.append(points)
+
+    @classmethod
+    def show(cls):
+        # get data
+        data = cls.points+cls.surfaces+cls.lines+cls.arrows+cls.meshes
+        fig = go.Figure(data, layout=cls.layout)
+        fig.show()
+
+
+    @classmethod
+    def plot_sphere(cls, sphere, opacity=0.7, colorscale='Viridis', name='' ):
         l = sphere.frame.location()
         l = l.view( -1, l.shape[-1] )
         for i in range(l.shape[0]):
@@ -50,63 +74,63 @@ class plotter():
             x += float(l[i,0])
             y += float(l[i,1])
             z += float(l[i,2])
-            plotter.ax.plot_surface(x, y, z, color=color, alpha=transparency)
+            surface = go.Surface(
+                x = x,
+                y = y,
+                z = z,
+                opacity=opacity,  # Set the transparency level (0 to 1, where 0 is fully transparent and 1 is fully opaque)
+                colorscale=colorscale,  # Choose a colorscale
+                showscale=False,  # Hide the color scale bar
+                name = name,
+            )   
+            cls.surfaces.append(surface)
 
-    @staticmethod
-    def plot_points(points, color='r', label='Points', marker='o'):
-        if plotter.ndim != points.shape[-1]:
-            plotter.init_figure(ndim=points.shape[-1])
-
-        if plotter.ndim == 3:
-            points_np = points.numpy()
-            x_points = points_np[..., 0]
-            y_points = points_np[..., 1]
-            z_points = points_np[..., 2]
-            plotter.ax.scatter(x_points, y_points, z_points, c=color, marker=marker, label=label)
-
-    @staticmethod
-    def plot_line(start, end, color='m', linewidth=0.5,label='Lines'):
-        if plotter.ndim != start.shape[-1]:
-            plotter.init_figure(ndim=start.shape[-1])
-
-        if plotter.ndim == 3:
-            start = start.numpy()
-            end = end.numpy()
-            plotter.ax.plot3D([start[...,0], end[...,0]], [start[...,1], end[...,1]], [start[...,2], end[...,2]], linewidth=linewidth, linestyle='-', color=color, label='Line Segments')
+    @classmethod
+    def plot_line(cls,start, end, opacity=1, color='blue', width=3, name='' ):
+        assert(len(start)==len(end))
+        if torch.is_tensor(start): start=start.numpy()
+        if torch.is_tensor(end): end=end.numpy()
+        start = start.reshape( -1, start.shape[-1] )
+        end = end.reshape( -1, end.shape[-1] )
+        for i in range(start.shape[0]):
+            x = [start[i,0], end[i,0]]
+            y = [start[i,1], end[i,1]]
+            z = [start[i,2], end[i,2]]
+            line = go.Scatter3d(
+                x=x,
+                y=y,
+                z=z,
+                mode='lines',  # Use 'lines' mode for line segments
+                line=dict(color=color, width=width),  # Set line color and width
+                name='Line Segments'
+            )
+            cls.lines.append(line)
             
 
-
-    @staticmethod
-    def plot_cam(camera, size=0.1):
-        assert(plotter.ndim == 3)
+    @classmethod
+    def plot_cam(cls,camera, size=0.1):
         o = camera.frame.location()
         c00 = o+camera.pix2dir(torch.LongTensor([0,0]))*size
         c01 = o+camera.pix2dir(torch.LongTensor([0,camera.intr.resolution[1]]))*size
         c10 = o+camera.pix2dir(torch.LongTensor([camera.intr.resolution[0],0]))*size
         c11 = o+camera.pix2dir(torch.LongTensor([camera.intr.resolution[0],camera.intr.resolution[1]]))*size
-        plotter.plot_line(o,c00)
-        plotter.plot_line(o,c10)
-        plotter.plot_line(o,c01)
-        plotter.plot_line(o,c11)
-        plotter.plot_line(c00,c01)
-        plotter.plot_line(c00,c10, linewidth=1.5, color='darkmagenta')
-        plotter.plot_line(c11,c01)
-        plotter.plot_line(c11,c10)
-        plotter.plot_points(o, color='darkmagenta')
+        cls.plot_line(o,c00,color='magenta')
+        cls.plot_line(o,c10,color='magenta')
+        cls.plot_line(o,c01,color='magenta')
+        cls.plot_line(o,c11,color='magenta')
+        cls.plot_line(c00,c01,color='magenta')
+        cls.plot_line(c00,c10, width=5, color='darkmagenta')
+        cls.plot_line(c11,c01,color='magenta')
+        cls.plot_line(c11,c10,color='magenta')
+        cls.plot_points(o, color='darkmagenta')
 
 
-    @staticmethod
-    def plot_ray(origin, dir, color='c', label='Rays'):
-        if plotter.ndim != origin.shape[-1]:
-            plotter.init_figure(ndim=origin.shape[-1])
+    @classmethod
+    def plot_ray(cls,origin, dir, color='c', label='Rays'):
+        cls.plot_line(origin, origin+dir, color='cyan')
 
-        if plotter.ndim == 3:
-            origin = origin.numpy()
-            dir = dir.numpy()
-            plotter.ax.quiver(origin[..., 0], origin[..., 1], origin[..., 2], dir[..., 0], dir[..., 1], dir[..., 2], color=color, label='Rays')
-
-    @staticmethod
-    def plot_frame(frame):
+    @classmethod
+    def plot_frame(cls,frame):
         x_axis_end = torch.FloatTensor((1, 0, 0))
         y_axis_end = torch.FloatTensor((0, 1, 0))
         z_axis_end = torch.FloatTensor((0, 0, 1))
@@ -116,23 +140,33 @@ class plotter():
         a_x = frame.location()+x_axis_end_rot
         a_y = frame.location()+y_axis_end_rot
         a_z = frame.location()+z_axis_end_rot
-        plotter.ax.plot([frame.location()[0], a_x[0]], [frame.location()[1], a_x[1]], [frame.location()[2], a_x[2]], 'r-', label='X-axis')
-        plotter.ax.plot([frame.location()[0], a_y[0]], [frame.location()[1], a_y[1]], [frame.location()[2], a_y[2]], 'g-', label='Y-axis')
-        plotter.ax.plot([frame.location()[0], a_z[0]], [frame.location()[1], a_z[1]], [frame.location()[2], a_z[2]], 'b-', label='Z-axis')
+        cls.plot_line(frame.location(),a_x, color='red')
+        cls.plot_line(frame.location(),a_y, color='green')
+        cls.plot_line(frame.location(),a_z, color='blue')
 
 
 
 
 if __name__ == "__main__":
-    p = plotter()
-    p.init_figure()
+    plotter.init_figure()
 
-    # # plot 2 spheres
-    # f = frame( torch.stack((torch.eye(4, dtype=torch.float32),torch.eye(4, dtype=torch.float32))) )
-    # f.set_location( torch.FloatTensor([[0.5,0.2,0], [0,0,0.6]]))
-    # r = torch.FloatTensor( [[0.5],[0.1]])
-    # s = sphere( f, r)
-    # p.plot_sphere(s)
+    # plot a sphere
+    f = Frame( torch.eye(4, dtype=torch.float32))
+    f.set_location( torch.FloatTensor([0,0,0.5]))
+    r = torch.FloatTensor( [0.5])
+    s = sphere( f, r)
+    plotter.plot_sphere(s)
+
+    # plot lines
+    start = torch.tensor([
+        [0.7, 0.0, 0.1],
+        [0.5, 0.1, 0.1],
+        ])
+    end = torch.tensor([
+        [0.2, 0.2, 0.3],
+        [0.0, 0.9, 0.3],
+        ])
+    plotter.plot_line(start,end)
 
     # plot points
     points = torch.tensor([
@@ -142,6 +176,6 @@ if __name__ == "__main__":
         [0.5, 0.6, 0.2],
         [0.5, 0.3, 0.1]
     ])
-    p.plot_points(-points)
+    plotter.plot_points(-points)
 
-    p.show()
+    plotter.show()
