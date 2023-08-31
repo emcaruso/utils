@@ -81,14 +81,13 @@ class Camera_cv():
         return Camera_opencv(self.K, self.frame.rotation, self.frame.location, device)
 
     def load_images(self):
-        del self.images
-        self.images = {}
-        for image_name,image_path in self.image_paths.items():
-            img = cv2.imread(image_path).swapaxes( 0,1)
-            if is_grayscale(img):
-                img=img[...,:1]
-            img = torch.FloatTensor(img)
-            self.images[image_name] = img / 255.0
+        if self.images == {}:
+            for image_name,image_path in self.image_paths.items():
+                img = cv2.imread(image_path)
+                if is_grayscale(img):
+                    img=img[...,:1]
+                img = torch.FloatTensor(img)
+                self.images[image_name] = img / 255.0
 
     def free_images(self):
         del self.images
@@ -100,6 +99,12 @@ class Camera_cv():
             image = image.numpy()
         cv2.imshow(img_name, image)
         cv2.waitKey(wk)
+
+    def get_image(self, img_name="rgb"):
+        image = self.images[img_name]
+        if torch.is_tensor(image):
+            image = image.numpy()
+        return image
 
     def show_images(self, wk=0):
         for name in self.images.keys():
