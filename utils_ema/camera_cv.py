@@ -177,8 +177,7 @@ if __name__=="__main__":
     pixs = c.get_pixel_grid( torch.LongTensor([10,10]) )
     # pixs = c.sample_pixels( 10 )
     origin, dir = c.pix2ray( pixs )
-    p = plotter()
-    p.init_figure()
+    p = plotter
     p.plot_ray(origin, dir)
     p.plot_cam(c, 1)
     p.plot_frame(c.frame)

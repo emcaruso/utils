@@ -17,10 +17,10 @@ class plotter():
     points = []
     surfaces = []
     lines = []
-    colorscale='Viridis',  # Choose a colorscale
     arrows = []
     meshes = []
     layout: go.Layout = None 
+    max_corner:float = 0
 
     @classmethod
     def init_figure(cls, range=[-1,1], title='3D plot'):
@@ -42,6 +42,7 @@ class plotter():
     @classmethod
     def plot_points(cls, points, opacity=1, color='red'):
         if torch.is_tensor(points): points=points.numpy()
+        cls.max_corner=max(np.max(np.abs(points)), cls.max_corner)
         points = go.Scatter3d(
             x = points[..., 0],
             y = points[..., 1],
@@ -54,6 +55,7 @@ class plotter():
 
     @classmethod
     def show(cls):
+        cls.init_figure(range=[-cls.max_corner,cls.max_corner])
         # get data
         data = cls.points+cls.surfaces+cls.lines+cls.arrows+cls.meshes
         fig = go.Figure(data, layout=cls.layout)
@@ -73,15 +75,24 @@ class plotter():
             x += float(l[i,0])
             y += float(l[i,1])
             z += float(l[i,2])
-            surface = go.Surface(
-                x = x,
-                y = y,
-                z = z,
-                opacity=opacity,  # Set the transparency level (0 to 1, where 0 is fully transparent and 1 is fully opaque)
-                colorscale=colorscale,  # Choose a colorscale
-                showscale=False,  # Hide the color scale bar
-            )   
-            cls.surfaces.append(surface)
+            cls.plot_surface(np.concatenate( (x.unsqueeze(-1),y.unsqueeze(-1),z.unsqueeze(-1)), axis=-1 ))
+
+    @classmethod
+    def plot_surface(cls, surface, opacity=0.7, colorscale='Viridis'):
+        if torch.is_tensor(surface): surface=surface.numpy()
+        cls.max_corner=max(np.max(np.abs(surface)), cls.max_corner)
+        x = surface[...,0]
+        y = surface[...,1]
+        z = surface[...,2]
+        surface = go.Surface(
+            x = x,
+            y = y,
+            z = z,
+            opacity=opacity,  # Set the transparency level (0 to 1, where 0 is fully transparent and 1 is fully opaque)
+            colorscale=colorscale,  # Choose a colorscale
+            showscale=False,  # Hide the color scale bar
+        )   
+        cls.surfaces.append(surface)
 
     @classmethod
     def plot_line(cls,start, end, opacity=1, color='blue', width=3 ):
@@ -90,6 +101,8 @@ class plotter():
         if torch.is_tensor(end): end=end.numpy()
         start = start.reshape( -1, start.shape[-1] )
         end = end.reshape( -1, end.shape[-1] )
+        cls.max_corner=max(np.max(np.abs(start)), cls.max_corner)
+        cls.max_corner=max(np.max(np.abs(end)), cls.max_corner)
         for i in range(start.shape[0]):
             x = [start[i,0], end[i,0]]
             y = [start[i,1], end[i,1]]
@@ -142,23 +155,26 @@ class plotter():
         cls.plot_line(frame.location(),a_z, color='blue')
 
     @classmethod
-    def plot_mesh(cls, vertices, faces, opacity=1, color='lightblue' ):
-        mesh_trace = go.Mesh3d(
+    def plot_mesh(cls, vertices, indices, opacity=1, color='lightblue' ):
+        if torch.is_tensor(vertices): vertices=vertices.numpy()
+        if torch.is_tensor(indices): indices=indices.numpy()
+        cls.max_corner=max(np.max(np.abs(vertices)), cls.max_corner)
+        mesh = go.Mesh3d(
             x=vertices[..., 0],
             y=vertices[..., 1],
             z=vertices[..., 2],
-            i=faces[..., 0],
-            j=faces[..., 1],
-            k=faces[..., 2],
+            i=indices[..., 0],
+            j=indices[..., 1],
+            k=indices[..., 2],
             opacity=opacity,
             color=color
         )
+        cls.meshes.append(mesh)
 
 
 
 
 if __name__ == "__main__":
-    plotter.init_figure()
 
     # plot a sphere
     f = Frame( torch.eye(4, dtype=torch.float32))
