@@ -14,7 +14,7 @@ except:
     from plot import *
 
 
-class Frame():
+class Pose():
 
     def __init__(self, T=torch.eye(4, dtype=torch.float32), units='meters'):
         assert(T.shape[-2:]==(4,4))
@@ -35,8 +35,11 @@ class Frame():
         self.rotate(T_tr[...,:3,:3])
         self.set_location( T_tr[...,:3,:3]@self.location()+T_tr[...,:3,-1])
 
+    def __eq__(self, other):
+        return torch.equal(self.T,other.T)
+
 if __name__ == "__main__":
-    p = Frame()
+    p = Pose()
     pl = plotter()
 
     # for i in np.arange(0,math.pi/4, 0.1):

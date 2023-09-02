@@ -14,33 +14,74 @@ except:
 
 class plotter():
 
-    points = []
-    surfaces = []
-    lines = []
-    arrows = []
-    meshes = []
-    layout: go.Layout = None 
+    frames = []
+    data_static = []
     max_corner:float = 0
 
     @classmethod
-    def init_figure(cls, range=[-1,1], title='3D plot'):
-        # Create a layout
-        cls.layout = go.Layout(
-            title=title,
+    def reset(cls):
+        max_corner=0
+        cls.frames.clear()
+        cls.points.clear()
+        cls.surfaces.clear()
+        cls.lines.clear()
+        cls.arrows.clear()
+        cls.meshes.clear()
+
+    @classmethod
+    def init_figure(cls, max_corner=[-1,1], sliders=False, title='3D plot'):
+
+        frames=[]
+
+        # Create a list of frames for animation
+        for i in range(len(cls.frames)):
+            frame = go.Frame(data=cls.frames[i], name=str(i))
+            frames.append(frame)
+
+        # Create the animation slider steps
+        slider_steps = []
+        for i in range(len(frames)):
+            step = {
+                'args': [
+                    [str(i)],  # Frame name to display
+                    {'frame': {'duration': 1000, 'redraw': True}, 'mode': 'immediate', 'transition': {'duration': 300}}
+                ],
+                'label': str(i),
+                'method': 'animate'
+            }
+            slider_steps.append(step)
+
+        # Create the figure with frames and slider
+        fig = go.Figure(data=cls.frames[0], frames=frames)
+        fig.update_layout(
+            sliders=[{
+                'active': 0,
+                'yanchor': 'top',
+                'xanchor': 'left',
+                'currentvalue': {
+                    'font': {'size': 16},
+                    'prefix': 'Frame:',
+                    'visible': True,
+                    'xanchor': 'right'
+                },
+                'steps': slider_steps
+            }],
             scene=dict(
                 xaxis_title='X Axis',
                 yaxis_title='Y Axis',
                 zaxis_title='Z Axis',
-                xaxis_range=range,
-                yaxis_range=range,
-                zaxis_range=range,
-                aspectmode='cube'  # Set aspect ratio to cube
-
-            )
+                xaxis_range=max_corner,
+                yaxis_range=max_corner,
+                zaxis_range=max_corner,
+                aspectmode="cube"
+            ),
+            title='3D Scatter Plot Animation'
         )
+        return fig
+
 
     @classmethod
-    def plot_points(cls, points, opacity=1, color='red'):
+    def plot_points(cls, points, opacity=1, color='red', frame=None):
         if torch.is_tensor(points): points=points.numpy()
         cls.max_corner=max(np.max(np.abs(points)), cls.max_corner)
         points = go.Scatter3d(
@@ -51,20 +92,33 @@ class plotter():
             mode = 'markers',
             marker=dict( color=color )
         )   
-        cls.points.append(points)
+        cls.append_data(points, frame)
+
+    @classmethod
+    def append_data(cls, data, frame=None):
+        d = frame-len(cls.frames)+1
+        if d>0: cls.frames.extend( [[]*d] )
+        cls.frames[frame].append(data)
+
+    @classmethod
+    def save(cls, path):
+        fig.write_html(path)
 
     @classmethod
     def show(cls):
-        cls.init_figure(range=[-cls.max_corner,cls.max_corner])
-        # get data
-        data = cls.points+cls.surfaces+cls.lines+cls.arrows+cls.meshes
-        fig = go.Figure(data, layout=cls.layout)
+        assert(cls.frames is not None)
+        fig = cls.init_figure(max_corner=[-cls.max_corner,cls.max_corner], sliders=True)
         fig.show()
-
+        # get data
+        # frames = []
+        # for i,data in enumerate(cls.frames):
+        #     frames.append(go.Frame(data=data, name=str(i)))
+        # fig = go.Figure(data=cls.frames[0], frames=frames, layout=cls.layout)
+        # fig.show()
 
     @classmethod
-    def plot_sphere(cls, sphere, opacity=0.7, colorscale='Viridis' ):
-        l = sphere.frame.location()
+    def plot_sphere(cls, sphere, opacity=0.7, colorscale='Viridis', frame=None):
+        l = sphere.pose.location()
         l = l.view( -1, l.shape[-1] )
         for i in range(l.shape[0]):
             theta, phi = np.mgrid[0.0:2.0 * np.pi:100j, 0.0:np.pi:50j]
@@ -75,10 +129,10 @@ class plotter():
             x += float(l[i,0])
             y += float(l[i,1])
             z += float(l[i,2])
-            cls.plot_surface(np.concatenate( (x.unsqueeze(-1),y.unsqueeze(-1),z.unsqueeze(-1)), axis=-1 ))
+            cls.plot_surface(np.concatenate( (x.unsqueeze(-1),y.unsqueeze(-1),z.unsqueeze(-1)), axis=-1 ), frame)
 
     @classmethod
-    def plot_surface(cls, surface, opacity=0.7, colorscale='Viridis'):
+    def plot_surface(cls, surface, opacity=0.7, colorscale='Viridis', frame=None):
         if torch.is_tensor(surface): surface=surface.numpy()
         cls.max_corner=max(np.max(np.abs(surface)), cls.max_corner)
         x = surface[...,0]
@@ -92,10 +146,10 @@ class plotter():
             colorscale=colorscale,  # Choose a colorscale
             showscale=False,  # Hide the color scale bar
         )   
-        cls.surfaces.append(surface)
+        cls.append_data(surface, frame)
 
     @classmethod
-    def plot_line(cls,start, end, opacity=1, color='blue', width=3 ):
+    def plot_line(cls,start, end, opacity=1, color='blue', width=3, frame=None ):
         assert(len(start)==len(end))
         if torch.is_tensor(start): start=start.numpy()
         if torch.is_tensor(end): end=end.numpy()
@@ -114,48 +168,49 @@ class plotter():
                 mode='lines',  # Use 'lines' mode for line segments
                 line=dict(color=color, width=width),  # Set line color and width
             )
-            cls.lines.append(line)
+            cls.append_data(line,frame)
             
 
     @classmethod
-    def plot_cam(cls,camera, size=0.1):
-        o = camera.frame.location()
+    def plot_cam(cls,camera, size=0.1, frame=None):
+        o = camera.pose.location()
         c00 = o+camera.pix2dir(torch.LongTensor([0,0]))*size
         c01 = o+camera.pix2dir(torch.LongTensor([0,camera.intr.resolution[1]]))*size
         c10 = o+camera.pix2dir(torch.LongTensor([camera.intr.resolution[0],0]))*size
         c11 = o+camera.pix2dir(torch.LongTensor([camera.intr.resolution[0],camera.intr.resolution[1]]))*size
-        cls.plot_line(o,c00,color='magenta')
-        cls.plot_line(o,c10,color='magenta')
-        cls.plot_line(o,c01,color='magenta')
-        cls.plot_line(o,c11,color='magenta')
-        cls.plot_line(c00,c01,color='magenta')
-        cls.plot_line(c00,c10, width=6, color='darkmagenta')
-        cls.plot_line(c11,c01,color='magenta')
-        cls.plot_line(c11,c10,color='magenta')
-        cls.plot_points(o, color='darkmagenta')
+        cls.plot_line(o,c00,color='magenta', frame=frame)
+        cls.plot_line(o,c10,color='magenta', frame=frame)
+        cls.plot_line(o,c01,color='magenta', frame=frame)
+        cls.plot_line(o,c11,color='magenta', frame=frame)
+        cls.plot_line(c00,c01,color='magenta', frame=frame)
+        cls.plot_line(c00,c10, width=6, color='darkmagenta', frame=frame)
+        cls.plot_line(c11,c01,color='magenta', frame=frame)
+        cls.plot_line(c11,c10,color='magenta', frame=frame)
+        cls.plot_points(o, color='darkmagenta', frame=frame)
 
 
     @classmethod
-    def plot_ray(cls,origin, dir, color='c', label='Rays'):
-        cls.plot_line(origin, origin+dir, color='cyan')
+    def plot_ray(cls,origin, dir, color='c', label='Rays', frame=None):
+        cls.plot_line(origin, origin+dir, color='cyan', frame=frame)
 
     @classmethod
-    def plot_frame(cls,frame):
-        x_axis_end = torch.FloatTensor((1, 0, 0))
-        y_axis_end = torch.FloatTensor((0, 1, 0))
-        z_axis_end = torch.FloatTensor((0, 0, 1))
-        x_axis_end_rot = torch.matmul(frame.rotation(), x_axis_end)
-        y_axis_end_rot = torch.matmul(frame.rotation(), y_axis_end)
-        z_axis_end_rot = torch.matmul(frame.rotation(), z_axis_end)
-        a_x = frame.location()+x_axis_end_rot
-        a_y = frame.location()+y_axis_end_rot
-        a_z = frame.location()+z_axis_end_rot
-        cls.plot_line(frame.location(),a_x, color='red')
-        cls.plot_line(frame.location(),a_y, color='green')
-        cls.plot_line(frame.location(),a_z, color='blue')
+    def plot_frame(cls,pose, size=1, frame=None):
+        x_axis_end = torch.FloatTensor((size, 0, 0))
+        y_axis_end = torch.FloatTensor((0, size, 0))
+        z_axis_end = torch.FloatTensor((0, 0, size))
+        x_axis_end_rot = torch.matmul(pose.rotation(), x_axis_end)
+        y_axis_end_rot = torch.matmul(pose.rotation(), y_axis_end)
+        z_axis_end_rot = torch.matmul(pose.rotation(), z_axis_end)
+        a_x = pose.location()+x_axis_end_rot
+        a_y = pose.location()+y_axis_end_rot
+        a_z = pose.location()+z_axis_end_rot
+        cls.plot_line(pose.location(),a_x, color='red', frame=frame)
+        cls.plot_line(pose.location(),a_y, color='green', frame=frame)
+        cls.plot_line(pose.location(),a_z, color='blue', frame=frame)
+
 
     @classmethod
-    def plot_mesh(cls, vertices, indices, opacity=1, color='lightblue' ):
+    def plot_mesh(cls, vertices, indices, opacity=1, color='lightblue', frame=None ):
         if torch.is_tensor(vertices): vertices=vertices.numpy()
         if torch.is_tensor(indices): indices=indices.numpy()
         cls.max_corner=max(np.max(np.abs(vertices)), cls.max_corner)
@@ -169,7 +224,8 @@ class plotter():
             opacity=opacity,
             color=color
         )
-        cls.meshes.append(mesh)
+
+        cls.append_data(mesh,frame)
 
 
 
