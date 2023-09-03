@@ -66,24 +66,27 @@ class Intrinsics():
     def lens(self): return torch.cat( (self.fx().unsqueeze(-1), self.fy().unsqueeze(-1)) , dim=-1)
     def size(self): return torch.cat( ( (self.cx()*2).unsqueeze(-1), (self.cy()*2).unsqueeze(-1) ) , dim=-1)
     def lens_squeezed(self): return (self.fx()+self.fy())/2
+    def to(self, device):
+        self.K = self.K.to(device)
+        return self
 
 
 class Camera_cv():
 
     def __init__(self, intrinsics = Intrinsics(), pose = Pose(), image_paths=None, name="Unk Cam", load_images=False, device='cpu'):
-        self.device=device
+        self.device = device
         self.name = name
-        self.pose = pose
+        self.pose = pose.to(device)
+        self.intr = intrinsics.to(device)
         self.images = {}
         self.image_paths = image_paths
-        self.intr = intrinsics
         if self.intr.units != self.pose.units: raise ValueError("frame units ("+self.pose.units+") and intrinsics units ("+self.intr.units+") must be the same")
         if load_images: self.load_images()
     
-    def get_camera_opencv(device=None):
+    def get_camera_opencv(self, device=None):
         if device is None:
             device = self.device
-        return Camera_opencv(self.intr.K, self.pose.rotation, self.pose.location, device)
+        return Camera_opencv(self.intr.K, self.pose.rotation(), self.pose.location(), device)
 
     def load_images(self):
         if self.images == {}:
@@ -157,11 +160,32 @@ class Camera_cv():
         return image[pix[:,0], pix[:,1],...]
 
     def get_overlayed_image( self, mesh, image_name='rgb' ):
-        image = get_image(image_name)
+        # image = self.get_image(image_name)
+        image = torch.from_numpy(self.get_image(image_name))
         gbuffer = Renderer.render(self, mesh, ["mask"], with_antialiasing=True)
-        overlayed = (gbuffer["mask"] + 1.0) * image
+        overlayed = (gbuffer["mask"].cpu() + 1.0) * image
         overlayed = overlayed.clamp_(min=0.0, max=1.0).cpu()
         return overlayed
+
+    def project(self, points, depth_as_distance=False):
+        """ Project points to the view's image plane according to the equation x = K*(R*X + t).
+
+        Args:
+            points (torch.tensor): 3D Points (A x ... x Z x 3)
+            depth_as_distance (bool): Whether the depths in the result are the euclidean distances to the camera center
+                                      or the Z coordinates of the points in camera space.
+        
+        Returns:
+            pixels (torch.tensor): Pixel coordinates of the input points in the image space and 
+                                   the points' depth relative to the view (A x ... x Z x 3).
+        """
+
+        # 
+        points_c = points @ torch.transpose(self.pose.rotation(), 0, 1) + self.pose.location()
+        pixels = points_c @ torch.transpose(self.intr.K, 0, 1)
+        pixels = pixels[..., :2] / pixels[..., 2:]
+        depths = points_c[..., 2:] if not depth_as_distance else torch.norm(points_c, p=2, dim=-1, keepdim=True)
+        return torch.cat([pixels, depths], dim=-1)
 
 
 

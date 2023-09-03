@@ -34,6 +34,9 @@ class Pose():
     def transform(self, T_tr):
         self.rotate(T_tr[...,:3,:3])
         self.set_location( T_tr[...,:3,:3]@self.location()+T_tr[...,:3,-1])
+    def to(self, device):
+        self.T = self.T.to(device)
+        return self
 
     def __eq__(self, other):
         return torch.equal(self.T,other.T)

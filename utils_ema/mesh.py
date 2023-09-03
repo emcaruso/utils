@@ -64,7 +64,8 @@ def find_connected_faces(indices):
         face_correspondences[ei_unique, face_correspondences_indices[ei_unique]] = face_ids[ei] 
         face_correspondences_indices[ei_unique] += 1
 
-    return face_correspondences[counts == 2].to(device=indices.device)
+    return face_correspondences[counts.cpu() == 2].to(device=indices.device)
+    # return face_correspondences[counts == 2].to(device=indices.device)
 
 def compute_laplacian_uniform(mesh):
     """

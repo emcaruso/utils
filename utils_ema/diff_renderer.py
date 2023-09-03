@@ -12,22 +12,23 @@ class Renderer:
         far (float): Far plane distance
     """
 
-    cls.glctx = dr.RasterizeGLContext()
-    cls.near = 1
-    cls.far = 1000
+    glctx = dr.RasterizeGLContext()
+    near = 1
+    far = 1000
 
 
     @classmethod
-    def set_near_far(cls, views, samples, epsilon=0.1):
+    def set_near_far(cls, cams, samples, epsilon=0.1):
         """ Automatically adjust the near and far plane distance
         """
 
         mins = []
         maxs = []
-        for view in views:
-            samples_projected = view.project(samples, depth_as_distance=True)
-            mins.append(samples_projected[...,2].min())
-            maxs.append(samples_projected[...,2].max())
+        for frame in cams:
+            for cam in frame:
+                samples_projected = cam.project(samples, depth_as_distance=True)
+                mins.append(samples_projected[...,2].min())
+                maxs.append(samples_projected[...,2].max())
 
         near, far = min(mins), max(maxs)
         cls.near = near - (near * epsilon)
@@ -89,10 +90,10 @@ class Renderer:
         gbuffer = {}
 
         # Rasterize only once
-        P = Renderer.to_gl_camera(camera.Camera_opencv, camera.resolution, n=cls.near, f=cls.far)
+        P = Renderer.to_gl_camera(camera.get_camera_opencv(), camera.intr.resolution, n=cls.near, f=cls.far)
         pos = Renderer.transform_pos(P, mesh.vertices)
         idx = mesh.indices.int()
-        rast, rast_out_db = dr.rasterize(cls.glctx, pos, idx, resolution=view.resolution)
+        rast, rast_out_db = dr.rasterize(cls.glctx, pos, idx, resolution=camera.intr.resolution)
 
         # Collect arbitrary output variables (aovs)
         if "mask" in channels:
@@ -108,7 +109,7 @@ class Renderer:
             gbuffer["normal"] = dr.antialias(normal, rast, pos, idx)[0] if with_antialiasing else normal[0]
 
         if "depth" in channels:
-            gbuffer["depth"] = view.project(gbuffer["position"], depth_as_distance=True)[..., 2:3]
+            gbuffer["depth"] = camera.project(gbuffer["position"], depth_as_distance=True)[..., 2:3]
 
         return gbuffer
     

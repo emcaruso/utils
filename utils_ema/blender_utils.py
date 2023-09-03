@@ -176,7 +176,8 @@ def generate_intrinsics_from_camera(cam):
     K[1,1] = lens*0.001
     K[0,2] = (res_x/2)*(sw*0.001/res_x)
     K[1,2] = (res_y/2)*(sw*0.001/res_x)
-    intrinsics = Intrinsics(K=K, resolution=torch.LongTensor([res_x,res_y]), units='meters')
+    resolution=torch.LongTensor([res_x,res_y])
+    intrinsics = Intrinsics(K=K, resolution=resolution, units='meters')
     # camera_data.shift_x = -(cx - res_x/2)/(res_x)
     # camera_data.shift_y = (cy - res_y/2)/(res_y)*(1/asp_ratio)
     return intrinsics   
