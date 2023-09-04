@@ -162,6 +162,11 @@ class Camera_cv():
     def get_overlayed_image( self, mesh, image_name='rgb' ):
         # image = self.get_image(image_name)
         image = torch.from_numpy(self.get_image(image_name))
+        print(self.get_camera_opencv())
+        print(self.intr.resolution)
+        print(Render.near)
+        print(Render.far)
+        exit(1)
         gbuffer = Renderer.render(self, mesh, ["mask"], with_antialiasing=True)
         overlayed = (gbuffer["mask"].cpu() + 1.0) * image
         overlayed = overlayed.clamp_(min=0.0, max=1.0).cpu()
