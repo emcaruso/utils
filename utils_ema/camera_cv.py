@@ -56,19 +56,24 @@ class Intrinsics():
         self.K = K
         self.units = units
         self.resolution = resolution
-        self.pixel_unit_ratio = resolution[0]/self.size()[0]
-        self.unit_pixel_ratio = self.size()[0]/resolution[0]
 
     def cx(self): return self.K[...,0,2]
     def cy(self): return self.K[...,1,2]
     def fx(self): return self.K[...,0,0]
     def fy(self): return self.K[...,1,1]
+    def pixel_unit_ratio(self): return self.resolution[0]/self.size()[0]
+    def unit_pixel_ratio(self): return self.size()[0]/self.resolution[0]
     def lens(self): return torch.cat( (self.fx().unsqueeze(-1), self.fy().unsqueeze(-1)) , dim=-1)
     def size(self): return torch.cat( ( (self.cx()*2).unsqueeze(-1), (self.cy()*2).unsqueeze(-1) ) , dim=-1)
     def lens_squeezed(self): return (self.fx()+self.fy())/2
     def to(self, device):
         self.K = self.K.to(device)
         return self
+    def uniform_scale(self, s:float, units:str="scaled" ):
+        self.K[...,0,0]*=s
+        self.K[...,1,1]*=s
+        self.K[...,:2,-1]*=s
+        self.units = units
 
 
 class Camera_cv():
@@ -143,7 +148,7 @@ class Camera_cv():
         return origin, dir
 
     def pix2dir( self, pix ):
-        pix = pix*self.intr.unit_pixel_ratio # pixels to units
+        pix = pix*self.intr.unit_pixel_ratio() # pixels to units
         ndc = (pix - self.intr.size()/2) / self.intr.lens()
         dir = torch.cat( (ndc, torch.ones( list(ndc.shape[:-1])+[1] ) ), -1 )
         dir_norm = torch.nn.functional.normalize( dir, dim=-1 )
@@ -162,11 +167,6 @@ class Camera_cv():
     def get_overlayed_image( self, mesh, image_name='rgb' ):
         # image = self.get_image(image_name)
         image = torch.from_numpy(self.get_image(image_name))
-        print(self.get_camera_opencv())
-        print(self.intr.resolution)
-        print(Render.near)
-        print(Render.far)
-        exit(1)
         gbuffer = Renderer.render(self, mesh, ["mask"], with_antialiasing=True)
         overlayed = (gbuffer["mask"].cpu() + 1.0) * image
         overlayed = overlayed.clamp_(min=0.0, max=1.0).cpu()

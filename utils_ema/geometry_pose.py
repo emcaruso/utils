@@ -31,6 +31,10 @@ class Pose():
     def rotate(self, rot): self.set_rotation(torch.matmul(self.rotation(), rot))
     def rotate_euler(self, e): self.rotate(e.eul2rot())
     def move_location(self, v): self.set_location(self.location()+v)
+    def uniform_scale(self, s:float, units:str="scaled"):
+        self.set_location(self.location()*s)
+        self.units = units
+    def scale(self, s:torch.FloatTensor): self.set_location(self.location()*s)
     def transform(self, T_tr):
         self.rotate(T_tr[...,:3,:3])
         self.set_location( T_tr[...,:3,:3]@self.location()+T_tr[...,:3,-1])

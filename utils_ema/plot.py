@@ -173,6 +173,24 @@ class plotter():
             )
             cls.append_data(line,frame)
             
+    @classmethod
+    def plot_aabb(cls, corners, opacity=.4, color='lightcyan', frame=None ):
+        if torch.is_tensor(corners): corners=corners.numpy()
+        x,y,z = corners.T
+        data = go.Mesh3d(
+            x=x,
+            y=y,
+            z=z,
+            i = [7, 0, 0, 0, 4, 4, 6, 6, 4, 0, 3, 2],
+            j = [3, 4, 1, 2, 5, 6, 5, 2, 0, 1, 6, 3],
+            k = [0, 7, 2, 3, 6, 7, 1, 1, 5, 5, 7, 6],
+            opacity=opacity,
+            color=color,
+            # flatshading = True
+        )
+        cls.append_data(data, frame)
+
+
 
     @classmethod
     def plot_cam(cls,camera, size=0.1, frame=None):

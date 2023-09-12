@@ -127,8 +127,9 @@ class Mesh:
         device (torch.device): Device where the mesh buffers are stored
     """
 
-    def __init__(self, vertices, indices, device='cpu'):
+    def __init__(self, vertices, indices, device='cpu', units='meters'):
         self.device = device
+        self.units = units
 
         self.vertices = vertices.to(device, dtype=torch.float32) if torch.is_tensor(vertices) else torch.tensor(vertices, dtype=torch.float32, device=device)
         self.indices = indices.to(device, dtype=torch.int64) if torch.is_tensor(indices) else torch.tensor(indices, dtype=torch.int64, device=device) if indices is not None else None
@@ -214,5 +215,10 @@ class Mesh:
 
     def transform_vertices(self, pose):
         self.vertices = self.get_transformed_vertices(pose)
+
+    def uniform_scale(self, s, units:str = "scaled"):
+        self.vertices *= s
+        self.units = units
+
 
 

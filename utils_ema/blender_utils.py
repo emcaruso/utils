@@ -171,7 +171,7 @@ def generate_intrinsics_from_camera(cam):
     sw = camera_data.sensor_width
     res_x = bpy.context.scene.render.resolution_x 
     res_y = bpy.context.scene.render.resolution_y 
-    K = torch.zeros((3,3))
+    K = torch.eye(3)
     K[0,0] = lens*0.001
     K[1,1] = lens*0.001
     K[0,2] = (res_x/2)*(sw*0.001/res_x)
