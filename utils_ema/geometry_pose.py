@@ -41,6 +41,8 @@ class Pose():
     def to(self, device):
         self.T = self.T.to(device)
         return self
+    def invert(self):
+        self.T = self.T.inverse()
 
     def __eq__(self, other):
         return torch.equal(self.T,other.T)

@@ -68,12 +68,20 @@ class Intrinsics():
     def lens_squeezed(self): return (self.fx()+self.fy())/2
     def to(self, device):
         self.K = self.K.to(device)
+        self.resolution = self.resolution.to(device)
         return self
     def uniform_scale(self, s:float, units:str="scaled" ):
         self.K[...,0,0]*=s
         self.K[...,1,1]*=s
         self.K[...,:2,-1]*=s
         self.units = units
+    def get_K_in_pixels(self):
+        K = self.K.clone()
+        r = self.pixel_unit_ratio()
+        K[...,0,0]*=r
+        K[...,1,1]*=r
+        K[...,:2,-1]*=r
+        return K
 
 
 class Camera_cv():
@@ -87,11 +95,20 @@ class Camera_cv():
         self.image_paths = image_paths
         if self.intr.units != self.pose.units: raise ValueError("frame units ("+self.pose.units+") and intrinsics units ("+self.intr.units+") must be the same")
         if load_images: self.load_images()
-    
+
+    def to(self, device):
+        self.pose = self.pose.to(device)
+        self.intr = self.intr.to(device)
+
     def get_camera_opencv(self, device=None):
         if device is None:
             device = self.device
-        return Camera_opencv(self.intr.K, self.pose.rotation(), self.pose.location(), device)
+        K = self.intr.get_K_in_pixels()
+        self.pose.invert()
+        R = self.pose.rotation()
+        t = self.pose.location()
+        self.pose.invert()
+        return Camera_opencv( K, R, t, device)
 
     def load_images(self):
         if self.images == {}:
@@ -164,10 +181,10 @@ class Camera_cv():
         assert(pix.dtype==torch.int32)
         return image[pix[:,0], pix[:,1],...]
 
-    def get_overlayed_image( self, mesh, image_name='rgb' ):
+    def get_overlayed_image( self, obj, image_name='rgb' ):
         # image = self.get_image(image_name)
         image = torch.from_numpy(self.get_image(image_name))
-        gbuffer = Renderer.render(self, mesh, ["mask"], with_antialiasing=True)
+        gbuffer = Renderer.render(self, obj, ["mask"], with_antialiasing=True)
         overlayed = (gbuffer["mask"].cpu() + 1.0) * image
         overlayed = overlayed.clamp_(min=0.0, max=1.0).cpu()
         return overlayed

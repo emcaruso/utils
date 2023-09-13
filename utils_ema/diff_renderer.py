@@ -79,7 +79,7 @@ class Renderer:
         return projection_matrix @ Rt
 
     @classmethod
-    def render(cls, camera, mesh, channels, with_antialiasing=True):
+    def render(cls, camera, obj, channels, with_antialiasing=True):
         """ Render G-buffers from a set of views.
 
         Args:
@@ -89,10 +89,19 @@ class Renderer:
         # TODO near far should be passed by view to get higher resolution in depth
         gbuffer = {}
 
+
+        gl_cam = camera.get_camera_opencv()
+        # print(gl_cam.K)
+        # print(gl_cam.R)
+        # print(gl_cam.t)
+        # # print(gl_cam.resolution)
+        # # print(self.near)
+        # # print(self.far)
+        # exit(1)
         # Rasterize only once
-        P = Renderer.to_gl_camera(camera.get_camera_opencv(), camera.intr.resolution, n=cls.near, f=cls.far)
-        pos = Renderer.transform_pos(P, mesh.vertices)
-        idx = mesh.indices.int()
+        P = Renderer.to_gl_camera( gl_cam, camera.intr.resolution, n=cls.near, f=cls.far)
+        pos = Renderer.transform_pos(P, obj["mesh"].vertices+obj["pose"].location())
+        idx = obj["mesh"].indices.int()
         rast, rast_out_db = dr.rasterize(cls.glctx, pos, idx, resolution=camera.intr.resolution)
 
         # Collect arbitrary output variables (aovs)

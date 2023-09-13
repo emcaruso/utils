@@ -194,6 +194,8 @@ class plotter():
 
     @classmethod
     def plot_cam(cls,camera, size=0.1, frame=None):
+        device = camera.device
+        camera.to("cpu")
         o = camera.pose.location()
         c00 = o+camera.pix2dir(torch.LongTensor([0,0]))*size
         c01 = o+camera.pix2dir(torch.LongTensor([0,camera.intr.resolution[1]]))*size
@@ -208,6 +210,7 @@ class plotter():
         cls.plot_line(c11,c01,color='magenta', frame=frame)
         cls.plot_line(c11,c10,color='magenta', frame=frame)
         cls.plot_points(o, color='darkmagenta', frame=frame)
+        camera.to(device)
 
 
     @classmethod
@@ -232,6 +235,9 @@ class plotter():
 
     @classmethod
     def plot_mesh(cls, vertices, indices, opacity=1, color='lightblue', frame=None ):
+        device = vertices.device
+        vertices = vertices.to("cpu")
+        indices = indices.to("cpu")
         if torch.is_tensor(vertices): vertices=vertices.numpy()
         if torch.is_tensor(indices): indices=indices.numpy()
         cls.max_corner=max(np.max(np.abs(vertices)), cls.max_corner)
