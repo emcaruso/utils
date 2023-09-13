@@ -15,9 +15,10 @@ class frame_extractor:
 
     def start_single_cam(self):
         self.camera = pylon.InstantCamera(pylon.TlFactory.GetInstance().CreateFirstDevice())
-        self.camera.Open()
-        self.camera.MaxNumBuffer = 10
-        self.camera.StartGrabbingMax(1000000)
+        self.camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
+        # self.camera.Open()
+        # self.camera.MaxNumBuffer = 10
+        # self.camera.StartGrabbingMax(1000000)
 
     def stop_single_cam(self):
         self.camera.Close()
