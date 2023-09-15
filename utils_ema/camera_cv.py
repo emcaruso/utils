@@ -110,14 +110,19 @@ class Camera_cv():
         self.pose.invert()
         return Camera_opencv( K, R, t, device)
 
-    def load_images(self):
-        if self.images == {}:
-            for image_name,image_path in self.image_paths.items():
-                img = cv2.imread(image_path)
-                if is_grayscale(img):
-                    img=img[...,:1]
-                img = torch.FloatTensor(img)
-                self.images[image_name] = img / 255.0
+    def load_images(self, images=None):
+        # if self.images == {}:
+
+        if images is None:
+            images = self.image_paths.keys()
+
+        for image_name in images:
+            image_path = self.image_paths[image_name]
+            img = cv2.imread(image_path)
+            if is_grayscale(img):
+                img=img[...,:1]
+            img = torch.FloatTensor(img)
+            self.images[image_name] = img / 255.0
 
     def free_images(self):
         del self.images
@@ -152,11 +157,23 @@ class Camera_cv():
             return torch.trunc(grid).type(torch.LongTensor)
         return grid
 
-    def sample_pixels( self, num_pixels, longtens=False ):
+    def sample_rand_pixs( self, num_pixels, longtens=False ):
         pixels_idxs = torch.reshape(self.get_pixel_grid( ), (-1,len(self.intr.resolution)))
         perm = torch.randperm(pixels_idxs.shape[0])
         n = min(pixels_idxs.shape[0],num_pixels )
         sampl_image_idxs = pixels_idxs[perm][:n]
+        if longtens:
+            sampl_image_idxs = torch.trunc(sampl_image_idxs).type(torch.LongTensor)
+        return sampl_image_idxs
+
+    def sample_rand_pixs_in_mask( self, percentage, mask, longtens=False ):
+        pixels_idxs = self.get_pixel_grid()[ mask> 0]
+        if not pixels_idxs.numel(): return None
+        pixels_idxs = torch.reshape(pixels_idxs, (-1,len(self.intr.resolution)))
+        perm = torch.randperm(pixels_idxs.shape[0])
+        sampl_image_idxs = pixels_idxs[perm][:(int(len(perm)*percentage))]
+        if longtens:
+            sampl_image_idxs = torch.trunc(sampl_image_idxs).type(torch.LongTensor)
         return sampl_image_idxs
 
     def get_all_rays(self):
