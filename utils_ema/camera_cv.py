@@ -86,15 +86,16 @@ class Intrinsics():
 
 class Camera_cv():
 
-    def __init__(self, intrinsics = Intrinsics(), pose = Pose(), image_paths=None, name="Unk Cam", load_images=False, device='cpu'):
+    def __init__(self, intrinsics = Intrinsics(), pose = Pose(), image_paths=None, frame=None, name="Unk Cam", load_images=None, device='cpu'):
         self.device = device
         self.name = name
+        self.frame = frame
         self.pose = pose.to(device)
         self.intr = intrinsics.to(device)
         self.images = {}
         self.image_paths = image_paths
         if self.intr.units != self.pose.units: raise ValueError("frame units ("+self.pose.units+") and intrinsics units ("+self.intr.units+") must be the same")
-        if load_images: self.load_images()
+        if load_images is not None: self.load_images( load_images, device)
 
     def to(self, device):
         self.pose = self.pose.to(device)
@@ -110,8 +111,7 @@ class Camera_cv():
         self.pose.invert()
         return Camera_opencv( K, R, t, device)
 
-    def load_images(self, images=None):
-        # if self.images == {}:
+    def load_images(self, images=None, device='cpu'):
 
         if images is None:
             images = self.image_paths.keys()
@@ -122,7 +122,9 @@ class Camera_cv():
             if is_grayscale(img):
                 img=img[...,:1]
             img = torch.FloatTensor(img)
-            self.images[image_name] = img / 255.0
+            img = img / 255.0
+            img = img.to(device)
+            self.images[image_name] = img
 
     def free_images(self):
         del self.images
@@ -131,21 +133,22 @@ class Camera_cv():
     def show_image(self,img_name="rgb", wk=0):
         image = self.images[img_name]
         if torch.is_tensor(image):
-            image = image.numpy()
+            image = image.detach().cpu().numpy()
         cv2.imshow(img_name, image)
         cv2.waitKey(wk)
 
     def get_image(self, img_name="rgb"):
         image = self.images[img_name]
-        if torch.is_tensor(image):
-            image = image.numpy()
+        # if torch.is_tensor(image):
+        #     image = image.numpy()
         return image
+
 
     def show_images(self, wk=0):
         for name in self.images.keys():
             self.show_image(name, wk)
 
-    def get_pixel_grid(self, n = None, longtens=False):
+    def get_pixel_grid(self, n = None, longtens=False, device='cpu'):
         if n is None:
             n=self.intr.resolution
         offs = (self.intr.resolution/n)/2
@@ -153,8 +156,9 @@ class Camera_cv():
         y_range = torch.linspace(offs[1], self.intr.resolution[1]-offs[1], n[1])  # 5 points from -1 to 1
         X, Y = torch.meshgrid(x_range, y_range, indexing="ij")
         grid = torch.cat( (X.unsqueeze(-1), Y.unsqueeze(-1)), dim=-1 )
+        grid = grid.to(device)
         if longtens:
-            return torch.trunc(grid).type(torch.LongTensor)
+            grid = torch.trunc(grid).to(torch.int32)
         return grid
 
     def sample_rand_pixs( self, num_pixels, longtens=False ):
@@ -163,17 +167,19 @@ class Camera_cv():
         n = min(pixels_idxs.shape[0],num_pixels )
         sampl_image_idxs = pixels_idxs[perm][:n]
         if longtens:
-            sampl_image_idxs = torch.trunc(sampl_image_idxs).type(torch.LongTensor)
+            sampl_image_idxs = torch.trunc(sampl_image_idxs).to(torch.int32)
         return sampl_image_idxs
 
     def sample_rand_pixs_in_mask( self, percentage, mask, longtens=False ):
-        pixels_idxs = self.get_pixel_grid()[ mask> 0]
+        grid = self.get_pixel_grid( device=mask.device, longtens=longtens)
+        # print([mask>0].device)
+        pixels_idxs = grid[ mask> 0]
         if not pixels_idxs.numel(): return None
         pixels_idxs = torch.reshape(pixels_idxs, (-1,len(self.intr.resolution)))
         perm = torch.randperm(pixels_idxs.shape[0])
         sampl_image_idxs = pixels_idxs[perm][:(int(len(perm)*percentage))]
         if longtens:
-            sampl_image_idxs = torch.trunc(sampl_image_idxs).type(torch.LongTensor)
+            sampl_image_idxs = torch.trunc(sampl_image_idxs).to(torch.int32)
         return sampl_image_idxs
 
     def get_all_rays(self):
@@ -184,7 +190,7 @@ class Camera_cv():
     def pix2dir( self, pix ):
         pix = pix*self.intr.unit_pixel_ratio() # pixels to units
         ndc = (pix - self.intr.size()/2) / self.intr.lens()
-        dir = torch.cat( (ndc, torch.ones( list(ndc.shape[:-1])+[1] ) ), -1 )
+        dir = torch.cat( (ndc, torch.ones( list(ndc.shape[:-1])+[1] ).to(ndc.device) ), -1 )
         dir_norm = torch.nn.functional.normalize( dir, dim=-1 )
         return torch.matmul(dir_norm, self.pose.rotation().T)
 
@@ -200,9 +206,9 @@ class Camera_cv():
 
     def get_overlayed_image( self, obj, image_name='rgb' ):
         # image = self.get_image(image_name)
-        image = torch.from_numpy(self.get_image(image_name))
+        image = self.get_image(image_name)
         gbuffer = Renderer.render(self, obj, ["mask"], with_antialiasing=True)
-        overlayed = (gbuffer["mask"].cpu() + 1.0) * image
+        overlayed = (gbuffer["mask"].to(image.device) + 1.0) * image
         overlayed = overlayed.clamp_(min=0.0, max=1.0).cpu()
         return overlayed
 
