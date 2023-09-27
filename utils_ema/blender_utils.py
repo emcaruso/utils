@@ -7,6 +7,7 @@ import os
 import sys
 import torch
 import numpy as np
+from mathutils import Matrix, Vector
 
 from utils_ema.camera_cv import *
 
@@ -144,6 +145,7 @@ def collect_objects_in_collection(collection_name):
 
 def generate_camera_from_intrinsics(cam_dict, name):
     camera_data = bpy.data.cameras.new(name=name)
+    camera_data.sensor_width = 6.6
     camera_object = bpy.data.objects.new(name, camera_data)
     bpy.context.scene.collection.objects.link(camera_object)
     K = cam_dict['camera_matrix']
@@ -161,11 +163,13 @@ def generate_camera_from_intrinsics(cam_dict, name):
     lens_y = K[1,1]*sw/(res_y*asp_ratio)
     lens = (lens_x+lens_y)/2
     camera_data.lens = lens
-    camera_data.shift_x = -(cx - res_x/2)/(res_x)
-    camera_data.shift_y = (cy - res_y/2)/(res_y)*(1/asp_ratio)
+    # camera_data.shift_x = -(cx - res_x/2)/(res_x)
+    # camera_data.shift_y = (cy - res_y/2)/(res_y)
+    # camera_data.shift_y = (cy - res_y/2)/(res_y)*(1/asp_ratio)
     return camera_object, camera_data
     
 def generate_intrinsics_from_camera(cam):
+    # NO OFFSET AS CAMERAS IN BLENDER ARE ASSUMED TO BE SYNTHETIC
     camera_data = cam.data
     lens = camera_data.lens
     sw = camera_data.sensor_width

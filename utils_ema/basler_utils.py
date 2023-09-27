@@ -2,6 +2,7 @@ from pypylon import pylon
 from pypylon import genicam
 import sys
 import cv2
+import numpy as np
 
 #Interact to start
 def ask_user_ready():
@@ -20,7 +21,7 @@ class frame_extractor:
         # self.camera.MaxNumBuffer = 10
         # self.camera.StartGrabbingMax(1000000)
 
-    def start_cams(self, NUM_CAMERAS, signal_period = 200000):
+    def start_cams(self, NUM_CAMERAS:int, signal_period = 200000, exposure_time = 10000):
 
         # get devices
         self.num_cameras = NUM_CAMERAS
@@ -37,6 +38,10 @@ class frame_extractor:
             print(f"set context {idx} for camera {camera_serial}")
             cam.SetCameraContext(idx)
 
+        # set exposure time
+        for camera in self.cam_array:
+            camera.ExposureTime.SetValue(exposure_time)
+
         #set hardware trigger 
         for camera in self.cam_array:
            camera.BslPeriodicSignalPeriod=200000
@@ -45,21 +50,25 @@ class frame_extractor:
            camera.TriggerMode="On"
            camera.TriggerSource="PeriodicSignal1"
 
+        self.cam_array.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
+
     def collect_synch_frames(self, frames_to_grab=10):
+        assert(self.cam_array.IsGrabbing())
 
         img_list = [ [], [] ]
         time_list = [ [], [] ]
         frame_counts = [0]*self.num_cameras
 
-        self.cam_array.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
         while True:
             with self.cam_array.RetrieveResult(5000) as res:
                 if res.GrabSucceeded():
                     img_nr = res.ImageNumber
                     cam_id = res.GetCameraContext()
                     frame_counts[cam_id] = img_nr
+
                     image = self.converter.Convert(res)
                     img = image.GetArray()
+
                     time_stamp = res.TimeStamp
                     res.Release()
                     img_list[cam_id].append(img)
@@ -75,10 +84,34 @@ class frame_extractor:
                         break
         return img_list, time_list
 
+    def grab_multiple_cams(self):
+        assert(self.cam_array.IsGrabbing())
+
+        images = [None] * self.num_cameras
+        while True:
+            # Wait for an image and then retrieve it. A timeout of 5000 ms is used.
+            grabResult = self.cam_array.RetrieveResult(5000, pylon.TimeoutHandling_ThrowException)
+
+            # Image grabbed successfully?
+            if grabResult.GrabSucceeded():
+                # Access the image data.
+                cam_id = grabResult.GetCameraContext()
+                image = self.converter.Convert(grabResult)
+                img = image.GetArray()
+                grabResult.Release()
+                images[cam_id] = img
+                if any( im is None for im in images):
+                    continue
+                else:
+                    break
+        return images
+
         
     def stop_single_cam(self):
         self.camera.Close()
 
+    def stop_multiple_cams(self):
+        self.cam_array.Close()
 
     def grab_single_cam(self):
         assert(self.camera.IsGrabbing())

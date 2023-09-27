@@ -212,25 +212,53 @@ class Camera_cv():
         overlayed = overlayed.clamp_(min=0.0, max=1.0).cpu()
         return overlayed
 
-    def project(self, points, depth_as_distance=False):
-        """ Project points to the view's image plane according to the equation x = K*(R*X + t).
+    def get_points_wrt_cam( self, points):
+        assert(torch.is_tensor(points))
+        assert(points.shape[-1]==3)
+        assert(len(points.shape)==2)
+        points = points.to(torch.float32)
+        T = self.pose.get_inverse()
+        points_wrt_cam = torch.matmul( points, T[...,:3,:3].transpose(-2,-1) ) + T[...,:3,-1] 
+        return points_wrt_cam
 
-        Args:
-            points (torch.tensor): 3D Points (A x ... x Z x 3)
-            depth_as_distance (bool): Whether the depths in the result are the euclidean distances to the camera center
-                                      or the Z coordinates of the points in camera space.
-        
-        Returns:
-            pixels (torch.tensor): Pixel coordinates of the input points in the image space and 
-                                   the points' depth relative to the view (A x ... x Z x 3).
-        """
+    def project_points_in_cam( self, points_wrt_cam):
+        assert(torch.is_tensor(points_wrt_cam))
+        assert(points_wrt_cam.shape[-1]==3)
+        assert(len(points_wrt_cam.shape)==2)
+        K = self.intr.K.to(torch.float32)
+        points_2d = torch.matmul( points_wrt_cam, K.transpose(-2,-1) )
+        points_2d[...,0] = points_2d[...,0]/points_2d[...,-1]
+        points_2d[...,1] = points_2d[...,1]/points_2d[...,-1]
+        points_2d = points_2d[...,:2]
+        return points_2d
 
-        # 
-        points_c = points @ torch.transpose(self.pose.rotation(), 0, 1) + self.pose.location()
-        pixels = points_c @ torch.transpose(self.intr.K, 0, 1)
-        pixels = pixels[..., :2] / pixels[..., 2:]
-        depths = points_c[..., 2:] if not depth_as_distance else torch.norm(points_c, p=2, dim=-1, keepdim=True)
-        return torch.cat([pixels, depths], dim=-1)
+    def project_points( self, points ):
+        assert(torch.is_tensor(points))
+        assert(points.shape[-1]==3)
+        assert(len(points.shape)==2)
+        points_wrt_cam = get_points_wrt_cam(points)
+        points_2d = project_points_in_cam( points_wrt_cam )
+        return points_2d
+
+
+
+
+    #def project(self, points, depth_as_distance=False):
+    #    """ Project points to the view's image plane according to the equation x = K*(R*X + t).
+    #    Args:
+    #        points (torch.tensor): 3D Points (A x ... x Z x 3)
+    #        depth_as_distance (bool): Whether the depths in the result are the euclidean distances to the camera center
+    #                                  or the Z coordinates of the points in camera space.
+    #    Returns:
+    #        pixels (torch.tensor): Pixel coordinates of the input points in the image space and 
+    #                               the points' depth relative to the view (A x ... x Z x 3).
+    #    """
+    #    # 
+    #    points_c = points @ torch.transpose(self.pose.rotation(), 0, 1) + self.pose.location()
+    #    pixels = points_c @ torch.transpose(self.intr.K, 0, 1)
+    #    pixels = pixels[..., :2] / pixels[..., 2:]
+    #    depths = points_c[..., 2:] if not depth_as_distance else torch.norm(points_c, p=2, dim=-1, keepdim=True)
+    #    return torch.cat([pixels, depths], dim=-1)
 
 
 

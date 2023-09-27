@@ -42,7 +42,18 @@ class Pose():
         self.T = self.T.to(device)
         return self
     def invert(self):
-        self.T = self.T.inverse()
+        self.T = self.get_inverse()
+    def get_inverse(self):
+        R_inv = self.rotation().transpose(-2,-1)
+        t_inv = - R_inv @ self.location()
+        new_shape = list(R_inv.shape)
+        new_shape[-1]=4
+        new_shape[-2]=4
+        T_inv = torch.zeros( *new_shape )
+        T_inv[...,:3,:3] = R_inv
+        T_inv[...,:3,-1] = t_inv
+        T_inv[...,3,3] = 1
+        return T_inv
 
     def __eq__(self, other):
         return torch.equal(self.T,other.T)
