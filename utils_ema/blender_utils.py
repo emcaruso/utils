@@ -53,10 +53,7 @@ def get_blend_file( blend_dir, blend_dataset ):
     return blend_files[0]
 
 def blenderTransform( obj ):
-    obj.rotation_euler[1]*=-1
-    obj.rotation_euler[2]*=-1
-    obj.location[1]*=-1
-    obj.location[2]*=-1
+    obj.rotation_euler[0]+=math.pi
 
 def delete_collection(collection_name):
     # Check if the collection exists

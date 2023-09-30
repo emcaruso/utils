@@ -52,7 +52,10 @@ class plotter():
             slider_steps.append(step)
 
         # Create the figure with frames and slider
-        fig = go.Figure(data=cls.frames[0]+cls.data_static, frames=frames)
+        f = []
+        if len(cls.frames)!=0:
+            f = cls.frames[0]
+        fig = go.Figure(data=f+cls.data_static, frames=frames)
         fig.update_layout(
             sliders=[{
                 'active': 0,

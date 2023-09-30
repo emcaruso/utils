@@ -41,6 +41,9 @@ class Pose():
     def to(self, device):
         self.T = self.T.to(device)
         return self
+    def dtype(self, dtype):
+        self.T = self.T.to(dtype)
+        return self
     def invert(self):
         self.T = self.get_inverse()
     def get_inverse(self):
@@ -49,7 +52,7 @@ class Pose():
         new_shape = list(R_inv.shape)
         new_shape[-1]=4
         new_shape[-2]=4
-        T_inv = torch.zeros( *new_shape )
+        T_inv = torch.zeros( *new_shape , dtype= self.T.dtype)
         T_inv[...,:3,:3] = R_inv
         T_inv[...,:3,-1] = t_inv
         T_inv[...,3,3] = 1
@@ -72,4 +75,3 @@ if __name__ == "__main__":
         pl.show()
 
 #     for i in range(10):
-#         p.move_location(torch.FloatTensor([0.1,0,0]))

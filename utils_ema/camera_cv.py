@@ -52,23 +52,33 @@ class Camera_opencv:
 
 
 class Intrinsics():
-    def __init__(self, K=torch.FloatTensor([[0.030,0,0.018],[0,0.030,0.018],[0,0,1]]), resolution=torch.LongTensor([700,700]), units:str='meters'):
-        self.K = K
+    def __init__(self, K=torch.FloatTensor([[0.030,0,0.018],[0,0.030,0.018],[0,0,1]]), D=None, 
+                    resolution=torch.LongTensor([700,700]), sensor_size=torch.FloatTensor([0.0036,0.0036]), 
+                    units:str='meters', typ=torch.float64):
         self.units = units
+        self.typ = typ
+        self.sensor_size = sensor_size
         self.resolution = resolution
+        self.D = D
+        self.K = K
+        self.K_pix = self.get_K_in_pixels()
+        self.K_pix_und, self.roi_und = self.get_K_und()
+        self.dtype(typ)
 
     def cx(self): return self.K[...,0,2]
     def cy(self): return self.K[...,1,2]
     def fx(self): return self.K[...,0,0]
     def fy(self): return self.K[...,1,1]
-    def pixel_unit_ratio(self): return self.resolution[0]/self.size()[0]
-    def unit_pixel_ratio(self): return self.size()[0]/self.resolution[0]
+    def pixel_unit_ratio(self): return self.resolution[0]/self.sensor_size[0]
+    def unit_pixel_ratio(self): return self.sensor_size[0]/self.resolution[0]
     def lens(self): return torch.cat( (self.fx().unsqueeze(-1), self.fy().unsqueeze(-1)) , dim=-1)
-    def size(self): return torch.cat( ( (self.cx()*2).unsqueeze(-1), (self.cy()*2).unsqueeze(-1) ) , dim=-1)
     def lens_squeezed(self): return (self.fx()+self.fy())/2
     def to(self, device):
         self.K = self.K.to(device)
         self.resolution = self.resolution.to(device)
+        return self
+    def dtype(self, dtype):
+        self.K = self.K.to(dtype)
         return self
     def uniform_scale(self, s:float, units:str="scaled" ):
         self.K[...,0,0]*=s
@@ -82,18 +92,35 @@ class Intrinsics():
         K[...,1,1]*=r
         K[...,:2,-1]*=r
         return K
+    def get_K_und(self, alpha=0, central_pp=True):
+        K_pix_und = None
+        roi_und = None
+        if self.D is not None:
+            w = int(self.resolution[0])
+            h = int(self.resolution[1])
+            K_pix_und, roi_und = cv2.getOptimalNewCameraMatrix(self.K_pix.numpy(),self.D.numpy(),(w,h),alpha,(w,h), central_pp)
+            K_pix_und = torch.from_numpy(K_pix_und) 
+        return K_pix_und, roi_und
+    def undistort_image(self, img):
+        map1, map2 = cv2.initUndistortRectifyMap(self.K_pix.numpy(), self.D.numpy(), None, self.K_pix_und.numpy(), (int(self.resolution[0]), int(self.resolution[1])), cv2.CV_32FC1)
+        undistorted = cv2.remap(img, map1, map2, cv2.INTER_LINEAR)
+        x,y,w,h = self.roi_und
+        undistorted = undistorted[y:y+h, x:x+w]
+        return undistorted
+
 
 
 class Camera_cv():
 
-    def __init__(self, intrinsics = Intrinsics(), pose = Pose(), image_paths=None, frame=None, name="Unk Cam", load_images=None, device='cpu'):
+    def __init__(self, intrinsics = Intrinsics(), pose = Pose(), image_paths=None, frame=None, name="Unk Cam", load_images=None, device='cpu', dtype=torch.float64):
         self.device = device
         self.name = name
         self.frame = frame
-        self.pose = pose.to(device)
-        self.intr = intrinsics.to(device)
+        self.pose = pose.to(device).dtype(dtype)
+        self.intr = intrinsics.to(device).dtype(dtype)
         self.images = {}
         self.image_paths = image_paths
+        self.typ = dtype
         if self.intr.units != self.pose.units: raise ValueError("frame units ("+self.pose.units+") and intrinsics units ("+self.intr.units+") must be the same")
         if load_images is not None: self.load_images( load_images, device)
 
@@ -192,7 +219,7 @@ class Camera_cv():
         ndc = (pix - self.intr.size()/2) / self.intr.lens()
         dir = torch.cat( (ndc, torch.ones( list(ndc.shape[:-1])+[1] ).to(ndc.device) ), -1 )
         dir_norm = torch.nn.functional.normalize( dir, dim=-1 )
-        return torch.matmul(dir_norm, self.pose.rotation().T)
+        return torch.matmul(dir_norm, self.pose.rotation().T.to(ndc.device))
 
     def pix2ray( self, pix ):
         dir = self.pix2dir( pix )
@@ -212,53 +239,75 @@ class Camera_cv():
         overlayed = overlayed.clamp_(min=0.0, max=1.0).cpu()
         return overlayed
 
+    # projection
     def get_points_wrt_cam( self, points):
         assert(torch.is_tensor(points))
         assert(points.shape[-1]==3)
         assert(len(points.shape)==2)
-        points = points.to(torch.float32)
+        points = points.to(self.typ)
         T = self.pose.get_inverse()
+        # points_wrt_cam = torch.matmul( points, T[...,:3,:3].transpose(-2,-1) ) + T[...,:3,-1] 
         points_wrt_cam = torch.matmul( points, T[...,:3,:3].transpose(-2,-1) ) + T[...,:3,-1] 
         return points_wrt_cam
 
-    def project_points_in_cam( self, points_wrt_cam):
+    def project_points_in_cam( self, points_wrt_cam, longtens=True):
         assert(torch.is_tensor(points_wrt_cam))
         assert(points_wrt_cam.shape[-1]==3)
         assert(len(points_wrt_cam.shape)==2)
-        K = self.intr.K.to(torch.float32)
-        points_2d = torch.matmul( points_wrt_cam, K.transpose(-2,-1) )
-        points_2d[...,0] = points_2d[...,0]/points_2d[...,-1]
-        points_2d[...,1] = points_2d[...,1]/points_2d[...,-1]
-        points_2d = points_2d[...,:2]
-        return points_2d
+        points_wrt_cam *= self.intr.pixel_unit_ratio()
+        uv = points_wrt_cam @ torch.transpose(self.intr.K_pix_und, -2,-1)
+        pixels = uv[..., :2] / uv[..., 2:]
+        # pixels = torch.index_select(pixels, 1, torch.LongTensor([1,0]))
+        if longtens:
+            pixels = torch.trunc(pixels).to(torch.int32)
+        return pixels
 
-    def project_points( self, points ):
+    def project_points_opencv( self, points ):
+        #points from units to pixels
+        points_wrt_cam = self.get_points_wrt_cam(points)
+        points_pix = (points_wrt_cam * self.intr.pixel_unit_ratio()).numpy()
+        # rvec, _ = cv2.Rodrigues(self.pose.rotation().numpy())
+        rvec= np.array([[0,0,0]], dtype='float32')
+        # tvec = (self.pose.location() * self.intr.pixel_unit_ratio()).numpy()
+        tvec= np.array([[0,0,0]], dtype='float32')
+        K = self.intr.K_pix.numpy()
+        D = self.intr.D.numpy()
+        # D = np.array([[0,0,0,0]], dtype='float32')
+        proj_points, _ = cv2.projectPoints( points_pix, rvec, tvec, K, D )
+        proj_points = np.squeeze(proj_points)
+        proj_points = np.trunc(proj_points)
+        proj_points = proj_points.astype('int32')
+        return proj_points
+
+
+
+    def project_points( self, points, longtens=True ):
         assert(torch.is_tensor(points))
         assert(points.shape[-1]==3)
         assert(len(points.shape)==2)
-        points_wrt_cam = get_points_wrt_cam(points)
-        points_2d = project_points_in_cam( points_wrt_cam )
-        return points_2d
+        points_wrt_cam = self.get_points_wrt_cam(points)
+        pixels = self.project_points_in_cam( points_wrt_cam, longtens)
+        return pixels
 
 
 
 
-    #def project(self, points, depth_as_distance=False):
-    #    """ Project points to the view's image plane according to the equation x = K*(R*X + t).
-    #    Args:
-    #        points (torch.tensor): 3D Points (A x ... x Z x 3)
-    #        depth_as_distance (bool): Whether the depths in the result are the euclidean distances to the camera center
-    #                                  or the Z coordinates of the points in camera space.
-    #    Returns:
-    #        pixels (torch.tensor): Pixel coordinates of the input points in the image space and 
-    #                               the points' depth relative to the view (A x ... x Z x 3).
-    #    """
-    #    # 
-    #    points_c = points @ torch.transpose(self.pose.rotation(), 0, 1) + self.pose.location()
-    #    pixels = points_c @ torch.transpose(self.intr.K, 0, 1)
-    #    pixels = pixels[..., :2] / pixels[..., 2:]
-    #    depths = points_c[..., 2:] if not depth_as_distance else torch.norm(points_c, p=2, dim=-1, keepdim=True)
-    #    return torch.cat([pixels, depths], dim=-1)
+    def project(self, points, depth_as_distance=False):
+        """ Project points to the view's image plane according to the equation x = K*(R*X + t).
+        Args:
+            points (torch.tensor): 3D Points (A x ... x Z x 3)
+            depth_as_distance (bool): Whether the depths in the result are the euclidean distances to the camera center
+                                      or the Z coordinates of the points in camera space.
+        Returns:
+            pixels (torch.tensor): Pixel coordinates of the input points in the image space and 
+                                   the points' depth relative to the view (A x ... x Z x 3).
+        """
+        # 
+        points_c = points @ torch.transpose(self.pose.rotation(), 0, 1) + self.pose.location()
+        pixels = points_c @ torch.transpose(self.intr.K, 0, 1)
+        pixels = pixels[..., :2] / pixels[..., 2:]
+        depths = points_c[..., 2:] if not depth_as_distance else torch.norm(points_c, p=2, dim=-1, keepdim=True)
+        return torch.cat([pixels, depths], dim=-1)
 
 
 
