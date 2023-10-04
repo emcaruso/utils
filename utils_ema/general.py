@@ -14,9 +14,9 @@ def print_hash(string, offs=5):
 
 ##### PARSER ######
 
-def dump_parsed_args( path, args ):
-    with open( path, 'w') as f:
-        json.dump(args.__dict__, f, indent=2)
+# def dump_parsed_args( path, args ):
+#     with open( path, 'w') as f:
+#         json.dump(args.__dict__, f, indent=2)
 
 def dump_dict( path, dict ):
     with open( path, 'w') as f:
@@ -46,3 +46,13 @@ def is_grayscale( image ):
     b1 = np.max(np.abs(image[...,0]-image[...,1]))==0
     b2 = np.max(np.abs(image[...,0]-image[...,2]))==0
     return b1 and b2
+
+# USER INPUT
+
+def ask_question( question , values ):
+    while True:
+        choice = input(question)
+        if choice.lower() in values:
+            return choice.lower()
+        print("Invalid input.")
+

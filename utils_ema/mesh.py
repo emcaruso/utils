@@ -221,4 +221,44 @@ class Mesh:
         self.units = units
 
 
+class AABB:
+    def __init__(self, points):
+        """ Construct the axis-aligned bounding box from a set of points.
 
+        Args:
+            points (tensor): Set of points (N x 3).
+        """
+        self.min_p, self.max_p = np.amin(points, axis=0), np.amax(points, axis=0)
+
+    @classmethod
+    def load(cls, path):
+        points = np.loadtxt(path)
+        return cls(points.astype(np.float32))
+
+    def save(self, path):
+        np.savetxt(path, np.array(self.minmax))
+
+    @property
+    def minmax(self):
+        return [self.min_p, self.max_p]
+
+    @property
+    def center(self):
+        return 0.5 * (self.max_p + self.min_p)
+
+    @property
+    def longest_extent(self):
+        return np.amax(self.max_p - self.min_p)
+
+    @property
+    def corners(self):
+        return np.array([
+            [self.min_p[0], self.min_p[1], self.min_p[2]],
+            [self.max_p[0], self.min_p[1], self.min_p[2]],
+            [self.max_p[0], self.max_p[1], self.min_p[2]],
+            [self.min_p[0], self.max_p[1], self.min_p[2]],
+            [self.min_p[0], self.min_p[1], self.max_p[2]],
+            [self.max_p[0], self.min_p[1], self.max_p[2]],
+            [self.max_p[0], self.max_p[1], self.max_p[2]],
+            [self.min_p[0], self.max_p[1], self.max_p[2]]
+        ])

@@ -3,6 +3,7 @@ from pypylon import genicam
 import sys
 import cv2
 import numpy as np
+import torch
 
 #Interact to start
 def ask_user_ready():
@@ -13,6 +14,16 @@ class frame_extractor:
         self.converter = pylon.ImageFormatConverter()
         self.converter.OutputPixelFormat = pylon.PixelType_BGR8packed
         self.converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAligned
+        self.load_devices()
+
+    def load_devices(self):
+        self.tlf = pylon.TlFactory.GetInstance()
+        self.devices = self.tlf.EnumerateDevices([pylon.DeviceInfo(),])
+        self.n_devices = len(self.devices)
+        print(f"PYLON: {self.n_devices} devices detected")
+        if self.n_devices == 0:
+            print("No devices detected!")
+            exit(1)
 
     def start_single_cam(self):
         self.camera = pylon.InstantCamera(pylon.TlFactory.GetInstance().CreateFirstDevice())
@@ -21,16 +32,15 @@ class frame_extractor:
         # self.camera.MaxNumBuffer = 10
         # self.camera.StartGrabbingMax(1000000)
 
-    def start_cams(self, NUM_CAMERAS:int, signal_period = 200000, exposure_time = 10000):
+    def start_cams(self, NUM_CAMERAS:int = None, signal_period = 200000, exposure_time = 10000):
 
         # get devices
+        if NUM_CAMERAS is None: NUM_CAMERAS = len(self.devices)
+
         self.num_cameras = NUM_CAMERAS
-        tlf = pylon.TlFactory.GetInstance()
-        di = pylon.DeviceInfo()
-        devices = tlf.EnumerateDevices([di,])
-        self.cam_array = pylon.InstantCameraArray(min(len(devices), NUM_CAMERAS))
+        self.cam_array = pylon.InstantCameraArray(min(len(self.devices), self.num_cameras))
         for i, cam in enumerate(self.cam_array):
-            cam.Attach(tlf.CreateDevice(devices[i]))
+            cam.Attach(self.tlf.CreateDevice(self.devices[i]))
             print("Using device ", cam.GetDeviceInfo().GetModelName())
         self.cam_array.Open()
         for idx, cam in enumerate(self.cam_array):
@@ -52,37 +62,34 @@ class frame_extractor:
 
         self.cam_array.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
 
-    def collect_synch_frames(self, frames_to_grab=10):
-        assert(self.cam_array.IsGrabbing())
-
-        img_list = [ [], [] ]
-        time_list = [ [], [] ]
-        frame_counts = [0]*self.num_cameras
-
-        while True:
-            with self.cam_array.RetrieveResult(5000) as res:
-                if res.GrabSucceeded():
-                    img_nr = res.ImageNumber
-                    cam_id = res.GetCameraContext()
-                    frame_counts[cam_id] = img_nr
-
-                    image = self.converter.Convert(res)
-                    img = image.GetArray()
-
-                    time_stamp = res.TimeStamp
-                    res.Release()
-                    img_list[cam_id].append(img)
-                    if len(time_list[cam_id])==0:
-                        time_list[cam_id].append(time_stamp)
-                        time_list[cam_id].append(0)
-                    else:
-                        time_list[cam_id].append(time_stamp-time_list[cam_id][0])
-                    print(f"cam #{cam_id}  image #{img_nr}, time: {time_list[cam_id][-1]}")
-                    # check if all cameras have reached 100 images
-                    if min(frame_counts) >= frames_to_grab:
-                        print(f"all cameras have acquired {frames_to_grab} frames")
-                        break
-        return img_list, time_list
+    
+    # def collect_synch_frames(self, frames_to_grab=10):
+    #     assert(self.cam_array.IsGrabbing())
+    #     img_list = [ [], [] ]
+    #     time_list = [ [], [] ]
+    #     frame_counts = [0]*self.num_cameras
+    #     while True:
+    #         with self.cam_array.RetrieveResult(5000) as res:
+    #             if res.GrabSucceeded():
+    #                 img_nr = res.ImageNumber
+    #                 cam_id = res.GetCameraContext()
+    #                 frame_counts[cam_id] = img_nr
+    #                 image = self.converter.Convert(res)
+    #                 img = image.GetArray()
+    #                 time_stamp = res.TimeStamp
+    #                 res.Release()
+    #                 img_list[cam_id].append(img)
+    #                 if len(time_list[cam_id])==0:
+    #                     time_list[cam_id].append(time_stamp)
+    #                     time_list[cam_id].append(0)
+    #                 else:
+    #                     time_list[cam_id].append(time_stamp-time_list[cam_id][0])
+    #                 print(f"cam #{cam_id}  image #{img_nr}, time: {time_list[cam_id][-1]}")
+    #                 # check if all cameras have reached 100 images
+    #                 if min(frame_counts) >= frames_to_grab:
+    #                     print(f"all cameras have acquired {frames_to_grab} frames")
+    #                     break
+    #     return img_list, time_list
 
     def grab_multiple_cams(self):
         assert(self.cam_array.IsGrabbing())
@@ -99,12 +106,43 @@ class frame_extractor:
                 image = self.converter.Convert(grabResult)
                 img = image.GetArray()
                 grabResult.Release()
-                images[cam_id] = img
+                images[cam_id] = torch.from_numpy(img)
                 if any( im is None for im in images):
                     continue
                 else:
                     break
         return images
+
+    def collect_frames_multiple(self, manual=True, max_frames = 50, show=True, func_show=[]):
+        collection = []
+        while True:
+            rawframes = self.grab_multiple_cams()
+
+            if show:
+                imgs_show = [ r.detach().clone() for r in rawframes ]
+                for func in func_show:
+                    imgs_show = func[0](imgs_show, *func[1])
+                for cam_id,img_show in enumerate(imgs_show):
+                    cv2.imshow("Cam_"+str(cam_id),img_show.numpy())
+
+            key = cv2.waitKey(1)
+            space_pressed = key == ord(' ')
+            if not manual or space_pressed:
+                if space_pressed: print("Space pressed")
+                print("Frame collected")
+                collection.append(rawframes)
+                if len(collection)>=max_frames:
+                    print(f"Max n frames collected ({max_frames})")
+                    break
+
+            elif key == ord('q'):
+                print("Q pressed")
+                print("Sequence grabbed")
+                cv2.destroyAllWindows()
+                break
+
+        return collection
+
 
         
     def stop_single_cam(self):

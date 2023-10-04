@@ -1,13 +1,14 @@
 import cv2
 import torch
 import sys, os
+import copy as cp
 
 try:
     from .geometry_pose import *
     from .plot import *
     from .torch_utils import *
     from .general import *
-    from .images import *
+    from .image import *
     try: from .diff_renderer import *
     except: pass
 except:
@@ -15,7 +16,7 @@ except:
     from plot import *
     from torch_utils import *
     from general import *
-    from images import *
+    from image import *
     try: from diff_renderer import *
     except: pass
 
@@ -54,7 +55,7 @@ class Camera_opencv:
 class Intrinsics():
     def __init__(self, K=torch.FloatTensor([[0.030,0,0.018],[0,0.030,0.018],[0,0,1]]), D=None, 
                     resolution=torch.LongTensor([700,700]), sensor_size=torch.FloatTensor([0.0036,0.0036]), 
-                    units:str='meters', typ=torch.float64):
+                    units:str='meters', typ=torch.float32):
         self.units = units
         self.typ = typ
         self.sensor_size = sensor_size
@@ -62,7 +63,7 @@ class Intrinsics():
         self.D = D
         self.K = K
         self.K_pix = self.get_K_in_pixels()
-        self.K_pix_und, self.roi_und = self.get_K_und()
+        self.K_und, self.K_pix_und, self.roi_und = self.get_K_und()
         self.dtype(typ)
 
     def cx(self): return self.K[...,0,2]
@@ -94,25 +95,28 @@ class Intrinsics():
         return K
     def get_K_und(self, alpha=0, central_pp=True):
         K_pix_und = None
+        K_und = None
         roi_und = None
         if self.D is not None:
             w = int(self.resolution[0])
             h = int(self.resolution[1])
             K_pix_und, roi_und = cv2.getOptimalNewCameraMatrix(self.K_pix.numpy(),self.D.numpy(),(w,h),alpha,(w,h), central_pp)
             K_pix_und = torch.from_numpy(K_pix_und) 
-        return K_pix_und, roi_und
+            K_und = K_pix_und * self.unit_pixel_ratio()
+        return K_und, K_pix_und, roi_und
     def undistort_image(self, img):
         map1, map2 = cv2.initUndistortRectifyMap(self.K_pix.numpy(), self.D.numpy(), None, self.K_pix_und.numpy(), (int(self.resolution[0]), int(self.resolution[1])), cv2.CV_32FC1)
-        undistorted = cv2.remap(img, map1, map2, cv2.INTER_LINEAR)
-        x,y,w,h = self.roi_und
-        undistorted = undistorted[y:y+h, x:x+w]
-        return undistorted
+        undistorted = cv2.remap(img.numpy(), map1, map2, cv2.INTER_LINEAR)
+        # x,y,w,h = self.roi_und
+        # undistorted = undistorted[y:y+h, x:x+w]
+        return torch.from_numpy(undistorted)
+
 
 
 
 class Camera_cv():
 
-    def __init__(self, intrinsics = Intrinsics(), pose = Pose(), image_paths=None, frame=None, name="Unk Cam", load_images=None, device='cpu', dtype=torch.float64):
+    def __init__(self, intrinsics = Intrinsics(), pose = Pose(), image_paths=None, frame=None, name="Unk Cam", load_images=None, device='cpu', dtype=torch.float32):
         self.device = device
         self.name = name
         self.frame = frame
@@ -123,6 +127,21 @@ class Camera_cv():
         self.typ = dtype
         if self.intr.units != self.pose.units: raise ValueError("frame units ("+self.pose.units+") and intrinsics units ("+self.intr.units+") must be the same")
         if load_images is not None: self.load_images( load_images, device)
+
+    def clone(self, same_intr = False, same_pose = False, image_paths = None, name = None ):
+
+        if same_intr: new_intr = self.intr
+        else: new_intr = cp.deepcopy(self.intr) 
+
+        if same_pose: new_pose = self.pose
+        else: new_pose = cp.deepcopy(self.pose) 
+
+        if image_paths is None: image_paths = self.image_paths
+        if name is None: name = self.name+"_copy"
+
+        new_cam = Camera_cv(new_intr, new_pose, image_paths, self.frame, name, device = self.device, dtype=self.typ)
+        return new_cam
+
 
     def to(self, device):
         self.pose = self.pose.to(device)
@@ -158,7 +177,7 @@ class Camera_cv():
         self.images = {}
     
     def show_image(self,img_name="rgb", wk=0):
-        image = self.images[img_name]
+        image = self.get_image(img_name)
         if torch.is_tensor(image):
             image = image.detach().cpu().numpy()
         cv2.imshow(img_name, image)
@@ -199,7 +218,6 @@ class Camera_cv():
 
     def sample_rand_pixs_in_mask( self, percentage, mask, longtens=False ):
         grid = self.get_pixel_grid( device=mask.device, longtens=longtens)
-        # print([mask>0].device)
         pixels_idxs = grid[ mask> 0]
         if not pixels_idxs.numel(): return None
         pixels_idxs = torch.reshape(pixels_idxs, (-1,len(self.intr.resolution)))
@@ -216,7 +234,7 @@ class Camera_cv():
 
     def pix2dir( self, pix ):
         pix = pix*self.intr.unit_pixel_ratio() # pixels to units
-        ndc = (pix - self.intr.size()/2) / self.intr.lens()
+        ndc = (pix - self.intr.sensor_size/2) / self.intr.lens()
         dir = torch.cat( (ndc, torch.ones( list(ndc.shape[:-1])+[1] ).to(ndc.device) ), -1 )
         dir_norm = torch.nn.functional.normalize( dir, dim=-1 )
         return torch.matmul(dir_norm, self.pose.rotation().T.to(ndc.device))
@@ -279,8 +297,6 @@ class Camera_cv():
         proj_points = proj_points.astype('int32')
         return proj_points
 
-
-
     def project_points( self, points, longtens=True ):
         assert(torch.is_tensor(points))
         assert(points.shape[-1]==3)
@@ -312,64 +328,64 @@ class Camera_cv():
 
 
 
-class Camera_on_sphere(Camera_cv):
+# class Camera_on_sphere(Camera_cv):
     
-    def __init__(self, az_el, az_el_idx, K=torch.FloatTensor( [[30,0,18],[0,30,18],[0,0,1]]), pose=None, resolution=torch.LongTensor([700,700]), images=None, name="Unk Cam on sphere" ):
-        super().__init__(K=K, pose=pose, resolution=resolution, images=images, name=name)
-        self.alpha = az_el
+#     def __init__(self, az_el, az_el_idx, K=torch.FloatTensor( [[30,0,18],[0,30,18],[0,0,1]]), pose=None, resolution=torch.LongTensor([700,700]), images=None, name="Unk Cam on sphere" ):
+#         super().__init__(K=K, pose=pose, resolution=resolution, images=images, name=name)
+#         self.alpha = az_el
 
-    def pix2eps( self, pix ):
-        assert( pix.dtype==torch.float32)
-        eps = -torch.arctan2(((pix-(self.intr.resolution/2))*self.millimeters_pixel_ratio), self.lens())
-        return eps
+#     def pix2eps( self, pix ):
+#         assert( pix.dtype==torch.float32)
+#         eps = -torch.arctan2(((pix-(self.intr.resolution/2))*self.millimeters_pixel_ratio), self.lens())
+#         return eps
 
-    def get_sample_from_pixs( self, pixs ):
-        eps = self.pix2eps( pixs )
-        alpha = repeat_tensor_to_match_shape(self.alpha, eps.shape)
-        sample = { 'eps':eps, 'alpha':alpha }
-        return sample
+#     def get_sample_from_pixs( self, pixs ):
+#         eps = self.pix2eps( pixs )
+#         alpha = repeat_tensor_to_match_shape(self.alpha, eps.shape)
+#         sample = { 'eps':eps, 'alpha':alpha }
+#         return sample
 
-    def sample_pixels_from_err_img( self, num_pixels, show=True ):
-        pixs = sample_from_image_pdf( self.images["err"], num_pixels )
+#     def sample_pixels_from_err_img( self, num_pixels, show=True ):
+#         pixs = sample_from_image_pdf( self.images["err"], num_pixels )
         
-        # show sampled pixels
-        if show:
-            show_pixs(pixs, self.images["err"].shape,wk=1)
+#         # show sampled pixels
+#         if show:
+#             show_pixs(pixs, self.images["err"].shape,wk=1)
 
-        pixs = torch.FloatTensor( pixs+0.5 )
-        return pixs
+#         pixs = torch.FloatTensor( pixs+0.5 )
+#         return pixs
 
 
 
-    def render_ddf( self, ddf, device, wk=0, update_err=False, path_err="" , prt=False):
+#     def render_ddf( self, ddf, device, wk=0, update_err=False, path_err="" , prt=False):
 
-        # for k,v in self.images.items():
-        #     if k=="err":
-        #         continue
-        #     show_image( k+":_gt", v.numpy(), wk )
+#         # for k,v in self.images.items():
+#         #     if k=="err":
+#         #         continue
+#         #     show_image( k+":_gt", v.numpy(), wk )
 
-        with torch.no_grad():
-            grid = self.get_pixel_grid()
-            sample = self.get_sample_from_pixs( grid )
-            sample = dict_to_device(sample, device)
-            output = ddf.forward( sample ).detach().cpu()
-            count = 0
-            errs = []
-            for k,v in self.images.items():
-                if k=="err":
-                    continue
-                o = output[...,count:count+v.shape[-1]]
-                count += v.shape[-1]
-                errs.append(torch.abs(o-v))
-                show_image( k, o.numpy(), wk )
+#         with torch.no_grad():
+#             grid = self.get_pixel_grid()
+#             sample = self.get_sample_from_pixs( grid )
+#             sample = dict_to_device(sample, device)
+#             output = ddf.forward( sample ).detach().cpu()
+#             count = 0
+#             errs = []
+#             for k,v in self.images.items():
+#                 if k=="err":
+#                     continue
+#                 o = output[...,count:count+v.shape[-1]]
+#                 count += v.shape[-1]
+#                 errs.append(torch.abs(o-v))
+#                 show_image( k, o.numpy(), wk )
 
-            if update_err:
-                err = torch.cat( errs, dim=-1 )
-                err = torch.norm(err, dim=-1)
-                if prt:
-                    print("err: "+str(torch.sum(err).item()))
-                cv2.imwrite(path_err+"/"+self.name+".png", err.numpy()*255)
-                show_image("err", err, wk)
+#             if update_err:
+#                 err = torch.cat( errs, dim=-1 )
+#                 err = torch.norm(err, dim=-1)
+#                 if prt:
+#                     print("err: "+str(torch.sum(err).item()))
+#                 cv2.imwrite(path_err+"/"+self.name+".png", err.numpy()*255)
+#                 show_image("err", err, wk)
 
 if __name__=="__main__":
     # c = Camera_on_sphere()

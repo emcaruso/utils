@@ -139,54 +139,77 @@ def collect_objects_in_collection(collection_name):
 
     return objects
 
+def generate_camera_from_camcv(cam, name):
+    cam.name = name
+    camera_data = bpy.data.cameras.new(name=cam.name)
+    camera_data.sensor_width = cam.intr.sensor_size[0]*1000
+    camera_object = bpy.data.objects.new(cam.name, camera_data)
 
-def generate_camera_from_intrinsics(cam_dict, name):
-    camera_data = bpy.data.cameras.new(name=name)
-    camera_data.sensor_width = 6.6
-    camera_object = bpy.data.objects.new(name, camera_data)
-    bpy.context.scene.collection.objects.link(camera_object)
-    K = cam_dict['camera_matrix']
-    fx = K[0,0]
-    fy = K[1,1]
-    cx = K[0,2]
-    cy = K[1,2]
-    res_x = int(cam_dict['img_width'])
-    res_y = int(cam_dict['img_height'])
-    bpy.context.scene.render.resolution_x = res_x
-    bpy.context.scene.render.resolution_y = res_y
-    asp_ratio = res_x/res_y
-    sw = camera_data.sensor_width
-    lens_x = K[0,0]*sw/res_x
-    lens_y = K[1,1]*sw/(res_y*asp_ratio)
-    lens = (lens_x+lens_y)/2
+    bpy.context.scene.render.resolution_x = cam.intr.resolution[0]
+    bpy.context.scene.render.resolution_y = cam.intr.resolution[1]
+
+    K = cam.intr.K_und
+    lens = ((K[0,0]+K[1,1])/2)*1000
     camera_data.lens = lens
-    # camera_data.shift_x = -(cx - res_x/2)/(res_x)
-    # camera_data.shift_y = (cy - res_y/2)/(res_y)
-    # camera_data.shift_y = (cy - res_y/2)/(res_y)*(1/asp_ratio)
+    # extrinsics
+    camera_object.matrix_world=Matrix(cam.pose.T.numpy())
+    blenderTransform( camera_object )
     return camera_object, camera_data
+
+
+
+
+# def generate_camera_from_intrinsics(cam_dict, name):
+    # camera_data = bpy.data.cameras.new(name=name)
+    # camera_data.sensor_width = 6.6
+    # camera_object = bpy.data.objects.new(name, camera_data)
+    # bpy.context.scene.collection.objects.link(camera_object)
+    # K = cam_dict['camera_matrix']
+    # fx = K[0,0]
+    # fy = K[1,1]
+    # cx = K[0,2]
+    # cy = K[1,2]
+    # res_x = int(cam_dict['img_width'])
+    # res_y = int(cam_dict['img_height'])
+
+    # resolution = torch.LongTensor([res_x,res_y])
+
+    # bpy.context.scene.render.resolution_x = res_x
+    # bpy.context.scene.render.resolution_y = res_y
+    # asp_ratio = res_x/res_y
+    # sw = camera_data.sensor_width
+    # lens_x = K[0,0]*sw/res_x
+    # lens_y = K[1,1]*sw/(res_y*asp_ratio)
+    # lens = (lens_x+lens_y)/2
+    # camera_data.lens = lens
+    # # camera_data.shift_x = -(cx - res_x/2)/(res_x)
+    # # camera_data.shift_y = (cy - res_y/2)/(res_y)
+    # # camera_data.shift_y = (cy - res_y/2)/(res_y)*(1/asp_ratio)
+    # return camera_object, camera_data
     
-def generate_intrinsics_from_camera(cam):
-    # NO OFFSET AS CAMERAS IN BLENDER ARE ASSUMED TO BE SYNTHETIC
-    camera_data = cam.data
-    lens = camera_data.lens
-    sw = camera_data.sensor_width
-    res_x = bpy.context.scene.render.resolution_x 
-    res_y = bpy.context.scene.render.resolution_y 
-    resolution=torch.LongTensor([res_x,res_y])
-    K = torch.eye(3)
-    K[0,0] = lens*0.001
-    K[1,1] = lens*0.001
-    K[0,2] = (res_x/2)*(sw*0.001/res_x)
-    K[1,2] = (res_y/2)*(sw*0.001/res_x)
-    intrinsics = Intrinsics(K=K, resolution=resolution, units='meters')
-    # K[0,0] = lens*0.001*(res_x/sw)
-    # K[1,1] = lens*0.001*(res_x/sw)
-    # K[0,2] = (res_x/2)
-    # K[1,2] = (res_y/2)
-    # intrinsics = Intrinsics(K=K, resolution=resolution, units='pixels')
-    # camera_data.shift_x = -(cx - res_x/2)/(res_x)
-    # camera_data.shift_y = (cy - res_y/2)/(res_y)*(1/asp_ratio)
-    return intrinsics   
+# def generate_intrinsics_from_camera(cam):
+#     # NO OFFSET AS CAMERAS IN BLENDER ARE ASSUMED TO BE SYNTHETIC
+#     camera_data = cam.data
+#     res_x = bpy.context.scene.render.resolution_x 
+#     res_y = bpy.context.scene.render.resolution_y 
+#     resolution=torch.LongTensor([res_x,res_y])
+#     lens = camera_data.lens
+#     sw = camera_data.sensor_width*0.001
+#     sh = sw*(res_y/res_x)
+#     K = torch.eye(3)
+#     K[0,0] = lens*0.001
+#     K[1,1] = lens*0.001
+#     K[0,2] = (res_x/2)*(sw/res_x)
+#     K[1,2] = (res_y/2)*(sw/res_x)
+#     intrinsics = Intrinsics(K=K, resolution=resolution, sensor_size=torch.FloatTensor([sw,sh]) ,units='meters')
+#     # K[0,0] = lens*0.001*(res_x/sw)
+#     # K[1,1] = lens*0.001*(res_x/sw)
+#     # K[0,2] = (res_x/2)
+#     # K[1,2] = (res_y/2)
+#     # intrinsics = Intrinsics(K=K, resolution=resolution, units='pixels')
+#     # camera_data.shift_x = -(cx - res_x/2)/(res_x)
+#     # camera_data.shift_y = (cy - res_y/2)/(res_y)*(1/asp_ratio)
+#     return intrinsics   
     
 
 
