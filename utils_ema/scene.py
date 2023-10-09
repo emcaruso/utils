@@ -79,14 +79,13 @@ class Scene():
         elif self.frames == "All":
             frames_available = [ int(f.split("_")[-1]) for f in list(os.listdir(self.data_dir+"/video")) if os.path.isdir(self.data_dir+"/video/"+f) ]
             self.frames = frames_available
-            self.n_frames = len(self.frames)
         elif len(self.frames) == 1:
             self.frames = [self.frames[0]]
         else:
             self.frames = range(self.frames[0],self.frames[1])
             frames_available = [ int(f.split("_")[-1]) for f in list(os.listdir(self.data_dir+"/video")) if os.path.isdir(self.data_dir+"/video/"+f) ]
             for frame in self.frames: assert(frame in frames_available)
-            self.n_frames = len(self.frames)
+        self.n_frames = len(self.frames)
         self.n_cameras = len(self.camera_names)
         self.cams = [[None]*self.n_cameras for _ in range(self.n_frames)]
         for j, cam_arr in enumerate(list(self.npz.values())):
@@ -120,7 +119,7 @@ class Scene():
             self.frames = range(self.frames[0],self.frames[1])
             frames_available = [ int(f.split("_")[-1]) for f in list(os.listdir(self.data_dir+"/video")) if os.path.isdir(self.data_dir+"/video/"+f) ]
             for frame in self.frames: assert(frame in frames_available)
-            self.n_frames = len(self.frames)
+        self.n_frames = len(self.frames)
 
 
         # get frames
@@ -268,12 +267,13 @@ class Scene():
         for frame in self.cams:
             for cam in frame:
                 # cam.load_images()
-                image = cam.get_image(image_name).detach().cpu().numpy()
+                image = cam.get_image(image_name).clone().cpu().numpy()
                 # wandb.log({"images": wandb.Image(image.numpy())})
                 images.append(image)
         fig, axs = figures.create_mosaic_figure(images)
 
         if save_path is not None:
+            print("saving scene images: "+save_path)
             plt.savefig(save_path)
 
         if show:
@@ -295,6 +295,7 @@ class Scene():
         fig, axs = figures.create_mosaic_figure(images)
 
         if save_path is not None:
+            print("saving scene images overlayed: "+save_path)
             plt.savefig(save_path)
             # wandb.log({"images overlayed": wandb.Image(save_path)})
 
@@ -304,7 +305,7 @@ class Scene():
         if not show:
             plt.close(fig)
 
-    def plot_cams(self, size=0.1):
+    def plot_cams(self, size=0.2):
         for i, frame in enumerate(self.cams):
             for cam in frame:
                 plotter.plot_cam(cam, size, i)

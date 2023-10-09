@@ -53,8 +53,8 @@ class Camera_opencv:
 
 
 class Intrinsics():
-    def __init__(self, K=torch.FloatTensor([[0.030,0,0.018],[0,0.030,0.018],[0,0,1]]), D=None, 
-                    resolution=torch.LongTensor([700,700]), sensor_size=torch.FloatTensor([0.0036,0.0036]), 
+    def __init__(self, K=torch.FloatTensor([[0.050,0,0.018],[0,0.050,0.018],[0,0,1]]), D=None, 
+                    resolution=torch.LongTensor([700,700]), sensor_size=torch.FloatTensor([0.036,0.036]), 
                     units:str='meters', typ=torch.float32):
         self.units = units
         self.typ = typ
@@ -76,7 +76,11 @@ class Intrinsics():
     def lens_squeezed(self): return (self.fx()+self.fy())/2
     def to(self, device):
         self.K = self.K.to(device)
+        self.K_pix = self.K_pix.to(device)
+        if self.K_und is not None: self.K_und = self.K_und.to(device)
+        if self.K_pix_und is not None: self.K_pix_und = self.K_pix_und.to(device)
         self.resolution = self.resolution.to(device)
+        self.sensor_size = self.sensor_size.to(device)
         return self
     def dtype(self, dtype):
         self.K = self.K.to(dtype)
@@ -86,6 +90,11 @@ class Intrinsics():
         self.K[...,1,1]*=s
         self.K[...,:2,-1]*=s
         self.units = units
+        self.sensor_size*=s
+        if self.K_und is not None:
+            self.K_und[...,0,0]*=s
+            self.K_und[...,1,1]*=s
+            self.K_und[...,:2,-1]*=s
     def get_K_in_pixels(self):
         K = self.K.clone()
         r = self.pixel_unit_ratio()
@@ -103,13 +112,19 @@ class Intrinsics():
             K_pix_und, roi_und = cv2.getOptimalNewCameraMatrix(self.K_pix.numpy(),self.D.numpy(),(w,h),alpha,(w,h), central_pp)
             K_pix_und = torch.from_numpy(K_pix_und) 
             K_und = K_pix_und * self.unit_pixel_ratio()
+        else:
+            K_und = self.K
+            K_pix_und = self.K_pix
+
         return K_und, K_pix_und, roi_und
     def undistort_image(self, img):
         map1, map2 = cv2.initUndistortRectifyMap(self.K_pix.numpy(), self.D.numpy(), None, self.K_pix_und.numpy(), (int(self.resolution[0]), int(self.resolution[1])), cv2.CV_32FC1)
         undistorted = cv2.remap(img.numpy(), map1, map2, cv2.INTER_LINEAR)
+        img_und = Image(torch.from_numpy(undistorted))
+
         # x,y,w,h = self.roi_und
         # undistorted = undistorted[y:y+h, x:x+w]
-        return torch.from_numpy(undistorted)
+        return img_und
 
 
 
@@ -150,7 +165,7 @@ class Camera_cv():
     def get_camera_opencv(self, device=None):
         if device is None:
             device = self.device
-        K = self.intr.get_K_in_pixels()
+        K = self.intr.K_pix_und.clone()
         self.pose.invert()
         R = self.pose.rotation()
         t = self.pose.location()
@@ -164,13 +179,7 @@ class Camera_cv():
 
         for image_name in images:
             image_path = self.image_paths[image_name]
-            img = cv2.imread(image_path)
-            if is_grayscale(img):
-                img=img[...,:1]
-            img = torch.FloatTensor(img)
-            img = img / 255.0
-            img = img.to(device)
-            self.images[image_name] = img
+            self.images[image_name] = Image(path=image_path, device=device)
 
     def free_images(self):
         del self.images
@@ -178,10 +187,7 @@ class Camera_cv():
     
     def show_image(self,img_name="rgb", wk=0):
         image = self.get_image(img_name)
-        if torch.is_tensor(image):
-            image = image.detach().cpu().numpy()
-        cv2.imshow(img_name, image)
-        cv2.waitKey(wk)
+        image.show(img_name,wk)
 
     def get_image(self, img_name="rgb"):
         image = self.images[img_name]
@@ -251,9 +257,13 @@ class Camera_cv():
 
     def get_overlayed_image( self, obj, image_name='rgb' ):
         # image = self.get_image(image_name)
-        image = self.get_image(image_name)
+        # bytes to float
+        image = self.get_image(image_name).float()
         gbuffer = Renderer.render(self, obj, ["mask"], with_antialiasing=True)
         overlayed = (gbuffer["mask"].to(image.device) + 1.0) * image
+        # overlayed = (gbuffer["mask"].to(image.device)) * image
+        # print(gbuffer["mask"].to(image.device))
+        # print(image)
         overlayed = overlayed.clamp_(min=0.0, max=1.0).cpu()
         return overlayed
 
@@ -390,7 +400,7 @@ class Camera_cv():
 if __name__=="__main__":
     # c = Camera_on_sphere()
     c = Camera_cv()
-    c.sample_pixels( 10 )
+    # c.sample_rand_pixs( 10 )
     c.pose.rotate_euler(eul(torch.FloatTensor([math.pi/4,math.pi/3,0])))
     c.pose.set_location(torch.FloatTensor([0.5,0.2,-0.1]))
     pixs = c.get_pixel_grid( torch.LongTensor([10,10]) )

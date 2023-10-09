@@ -4,6 +4,11 @@ import sys
 import cv2
 import numpy as np
 import torch
+try:
+    from .image import *
+except:
+    from image import *
+
 
 #Interact to start
 def ask_user_ready():
@@ -63,34 +68,6 @@ class frame_extractor:
         self.cam_array.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
 
     
-    # def collect_synch_frames(self, frames_to_grab=10):
-    #     assert(self.cam_array.IsGrabbing())
-    #     img_list = [ [], [] ]
-    #     time_list = [ [], [] ]
-    #     frame_counts = [0]*self.num_cameras
-    #     while True:
-    #         with self.cam_array.RetrieveResult(5000) as res:
-    #             if res.GrabSucceeded():
-    #                 img_nr = res.ImageNumber
-    #                 cam_id = res.GetCameraContext()
-    #                 frame_counts[cam_id] = img_nr
-    #                 image = self.converter.Convert(res)
-    #                 img = image.GetArray()
-    #                 time_stamp = res.TimeStamp
-    #                 res.Release()
-    #                 img_list[cam_id].append(img)
-    #                 if len(time_list[cam_id])==0:
-    #                     time_list[cam_id].append(time_stamp)
-    #                     time_list[cam_id].append(0)
-    #                 else:
-    #                     time_list[cam_id].append(time_stamp-time_list[cam_id][0])
-    #                 print(f"cam #{cam_id}  image #{img_nr}, time: {time_list[cam_id][-1]}")
-    #                 # check if all cameras have reached 100 images
-    #                 if min(frame_counts) >= frames_to_grab:
-    #                     print(f"all cameras have acquired {frames_to_grab} frames")
-    #                     break
-    #     return img_list, time_list
-
     def grab_multiple_cams(self):
         assert(self.cam_array.IsGrabbing())
 
@@ -106,25 +83,25 @@ class frame_extractor:
                 image = self.converter.Convert(grabResult)
                 img = image.GetArray()
                 grabResult.Release()
-                images[cam_id] = torch.from_numpy(img)
+                images[cam_id] = Image(img=img)
                 if any( im is None for im in images):
                     continue
                 else:
                     break
         return images
 
-    def collect_frames_multiple(self, manual=True, max_frames = 50, show=True, func_show=[]):
+    def collect_frames_multiple(self, manual=True, max_frames = 50, show=True, func_show=[], drop_rate=2):
         collection = []
         while True:
             rawframes = self.grab_multiple_cams()
 
             if show:
-                imgs_show = [ r.detach().clone() for r in rawframes ]
+                imgs_show = [ r for r in rawframes ]
                 for func in func_show:
                     imgs_show = func[0](imgs_show, *func[1])
                 for cam_id,img_show in enumerate(imgs_show):
-                    cv2.imshow("Cam_"+str(cam_id),img_show.numpy())
-
+                    resized = cv2.resize(img_show.img.numpy(), (int(img_show.img.shape[1]/drop_rate), int(img_show.img.shape[0]/drop_rate)), interpolation= cv2.INTER_LINEAR)
+                    cv2.imshow("Cam_"+str(cam_id), resized)
             key = cv2.waitKey(1)
             space_pressed = key == ord(' ')
             if not manual or space_pressed:
@@ -157,11 +134,11 @@ class frame_extractor:
         # Wait for an image and then retrieve it. A timeout of 5000 ms is used.
         grabResult = self.camera.RetrieveResult(5000, pylon.TimeoutHandling_ThrowException)
 
-        # Image grabbed successfully?
+        # Image gimg=rabbed successfully?
         if grabResult.GrabSucceeded():
             # Access the image data.
             image = self.converter.Convert(grabResult)
-            img = image.GetArray()
+            img = Image(img=image.GetArray())
             grabResult.Release()
             # cv2.imshow( "ao", img )
             # cv2.waitKey(0)
@@ -176,22 +153,3 @@ if __name__=="__main__":
     # # single frame
     # frame_extr.start_single_cam()
     # img = frame_extr.grab_single_cam()
-
-    # multi_frames
-    frame_extr.start_cams(2)
-    img_list , time_list = frame_extr.collect_synch_frames(10)
-    for times, imgs in zip(time_list, img_list):
-
-        # for i,time in enumerate(times):
-        #     print(f"{i}, {time}")
-
-        for img in imgs:
-            cv2.imshow("",img)
-            cv2.waitKey(0)
-
-
-
-
-
-
-
