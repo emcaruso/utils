@@ -1,7 +1,8 @@
 import numpy as np
 import nvdiffrast.torch as dr
 import torch
-
+from utils_ema.image import Image
+from utils_ema.pbr_shader import PBR_Shader
 
 class Renderer:
     """ Rasterization-based triangle mesh renderer that produces G-buffers for a set of views.
@@ -66,6 +67,16 @@ class Renderer:
                                                 height=resolution[0],
                                                 device=camera.device)
 
+        # projection_matrix = Renderer.projection(fx=camera.K[1,1],
+        #                                         fy=camera.K[0,0],
+        #                                         cx=camera.K[1,2],
+        #                                         cy=camera.K[0,2],
+        #                                         n=n,
+        #                                         f=f,
+        #                                         width=resolution[0],
+        #                                         height=resolution[1],
+        #                                         device=camera.device)
+
         Rt = torch.eye(4, device=camera.device)
         Rt[:3, :3] = camera.R
         Rt[:3, 3] = camera.t
@@ -79,24 +90,71 @@ class Renderer:
         return projection_matrix @ Rt
 
     @classmethod
-    def render(cls, camera, obj, channels, with_antialiasing=True):
-        """ Render G-buffers from a set of views.
+    def render_pbr(cls, camera, obj, light):
+        gbuffers = cls.diffrast(camera, obj, channels=['mask', 'position', 'normal'], with_antialiasing=True) 
+        mask = (gbuffers["mask"] > 0).squeeze()
+        # indexes = torch.nonzero(mask).squeeze()
 
-        Args:
-            views (List[Views]): 
-        """
+        pixs = camera.sample_rand_pixs_in_mask( mask, percentage=1)
+        dirs = camera.pix2dir( pixs )
+
+        if pixs is None: return None
+
+        # images
+        position = gbuffers["position"]
+        normal = gbuffers["normal"]
+        shape = normal.shape
+
+        position = position[pixs[:, 1], pixs[:, 0], :]
+        normal = normal[pixs[:, 1], pixs[:, 0], :]
+
+        shaded = PBR_Shader.render_spherical( shape, pixs, position, normal, dirs, obj.material, light, device=position.device)
+
+        return Image(img=shaded)
+
+    @classmethod
+    def render_neural(cls, camera, obj, neural_shader):
+        gbuffers = cls.diffrast(camera, obj, channels=['mask', 'position', 'normal'], with_antialiasing=True) 
+        mask = (gbuffers["mask"] > 0).squeeze()
+        # indexes = torch.nonzero(mask).squeeze()
+
+        pixs = camera.sample_rand_pixs_in_mask( mask, percentage=1)
+        dirs = camera.pix2dir( pixs )
+
+        if pixs is None: return None
+
+        # images
+        position = gbuffers["position"]
+        normal = gbuffers["normal"]
+        img = torch.zeros( normal.shape , device=position.device)
+
+        position = position[pixs[:, 1], pixs[:, 0], :]
+        normal = normal[pixs[:, 1], pixs[:, 0], :]
+        shaded = neural_shader(position, normal, dirs)
+
+        img[pixs[:,1],pixs[:,0],:]=shaded
+        return Image(img=img)
+
+
+    @classmethod
+    def diffrast(cls, camera, obj, channels, with_antialiasing=True):
 
         gbuffer = {}
 
 
         gl_cam = camera.get_camera_opencv()
-        mesh = obj["mesh"]
+        mesh = obj.mesh
+        # print(obj.mesh.device)
+        # print(obj.pose.device)
+        # exit(1)
 
         # Rasterize only once
-        P = Renderer.to_gl_camera( gl_cam, camera.intr.resolution, n=cls.near, f=cls.far)
-        pos = Renderer.transform_pos(P, obj["mesh"].vertices+obj["pose"].location())
-        idx = obj["mesh"].indices.int()
-        rast, rast_out_db = dr.rasterize(cls.glctx, pos, idx, resolution=camera.intr.resolution)
+        r = camera.intr.resolution
+        r = [r[1],r[0]]
+        P = Renderer.to_gl_camera( gl_cam, r , n=cls.near, f=cls.far)
+        pos = Renderer.transform_pos(P, obj.mesh.vertices+obj.pose.location())
+        idx = obj.mesh.indices.int()
+        rast, rast_out_db = dr.rasterize(cls.glctx, pos, idx, resolution=r)
 
         # Collect arbitrary output variables (aovs)
         if "mask" in channels:
@@ -115,4 +173,6 @@ class Renderer:
             gbuffer["depth"] = camera.project(gbuffer["position"], depth_as_distance=True)[..., 2:3]
 
         return gbuffer
+
+
     

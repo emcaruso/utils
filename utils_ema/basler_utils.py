@@ -2,17 +2,11 @@ from pypylon import pylon
 from pypylon import genicam
 import sys
 import cv2
-import numpy as np
-import torch
 try:
     from .image import *
 except:
     from image import *
 
-
-#Interact to start
-def ask_user_ready():
-    input("Press Enter when you're ready: ")
 
 class frame_extractor:
     def __init__(self):
@@ -27,22 +21,17 @@ class frame_extractor:
         self.n_devices = len(self.devices)
         print(f"PYLON: {self.n_devices} devices detected")
         if self.n_devices == 0:
-            print("No devices detected!")
-            exit(1)
+            raise Exception("No devices detected!")
 
     def start_single_cam(self):
         self.camera = pylon.InstantCamera(pylon.TlFactory.GetInstance().CreateFirstDevice())
         self.camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
-        # self.camera.Open()
-        # self.camera.MaxNumBuffer = 10
-        # self.camera.StartGrabbingMax(1000000)
 
-    def start_cams(self, NUM_CAMERAS:int = None, signal_period = 200000, exposure_time = 10000):
+    def start_cams(self, num_cameras:int = None, signal_period:int = 200000, exposure_time:int = 10000):
 
         # get devices
-        if NUM_CAMERAS is None: NUM_CAMERAS = len(self.devices)
-
-        self.num_cameras = NUM_CAMERAS
+        if num_cameras is None: num_cameras = len(self.devices)
+        self.num_cameras = num_cameras
         self.cam_array = pylon.InstantCameraArray(min(len(self.devices), self.num_cameras))
         for i, cam in enumerate(self.cam_array):
             cam.Attach(self.tlf.CreateDevice(self.devices[i]))
@@ -59,7 +48,7 @@ class frame_extractor:
 
         #set hardware trigger 
         for camera in self.cam_array:
-           camera.BslPeriodicSignalPeriod=200000
+           camera.BslPeriodicSignalPeriod=signal_period
            camera.BslPeriodicSignalDelay=0
            camera.TriggerSelector="FrameStart"
            camera.TriggerMode="On"
@@ -68,13 +57,13 @@ class frame_extractor:
         self.cam_array.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
 
     
-    def grab_multiple_cams(self):
+    def grab_multiple_cams(self, timeout:int = 5000):
         assert(self.cam_array.IsGrabbing())
 
         images = [None] * self.num_cameras
         while True:
             # Wait for an image and then retrieve it. A timeout of 5000 ms is used.
-            grabResult = self.cam_array.RetrieveResult(5000, pylon.TimeoutHandling_ThrowException)
+            grabResult = self.cam_array.RetrieveResult(timeout, pylon.TimeoutHandling_ThrowException)
 
             # Image grabbed successfully?
             if grabResult.GrabSucceeded():
@@ -90,7 +79,7 @@ class frame_extractor:
                     break
         return images
 
-    def collect_frames_multiple(self, manual=True, max_frames = 50, show=True, func_show=[], drop_rate=2):
+    def collect_frames_multiple(self, manual:bool=True, max_frames:int = 50, show:bool=True, func_show=[], drop_rate:int=2):
         collection = []
         while True:
             rawframes = self.grab_multiple_cams()
@@ -140,7 +129,7 @@ class frame_extractor:
             image = self.converter.Convert(grabResult)
             img = Image(img=image.GetArray())
             grabResult.Release()
-            # cv2.imshow( "ao", img )
+            # cv2.imshow( "grabbed", img )
             # cv2.waitKey(0)
             return img
         else:

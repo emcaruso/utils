@@ -14,26 +14,39 @@ class Image():
             if isinstance(img, np.ndarray):
                 img = torch.from_numpy(img)
             self.img = img.to(device)
-            return
         if path is not None:
             self.img = torch.from_numpy(cv2.imread(path)).to(device)
+            # self.img = self.swapped()
 
         if self.is_grayscale(self.img):
             self.img = self.img[...,0]
             # self.img = self.img[...,0:1]
             # self.img = torch.mean( self.img, dim=-1, dtype=torch.uint8)
+        self.shape = self.img.shape
+
+    def swapped(self):
+        return torch.swapaxes(self.img,0,1)
 
     def float(self):
         return self.img.to(torch.float32)/255
 
     def is_grayscale( self, image ):
-        assert(image.shape[-1]==3)
-        b1 = torch.max(torch.abs(image[...,0]-image[...,1]))==0
-        b2 = torch.max(torch.abs(image[...,0]-image[...,2]))==0
-        return b1 and b2
+        if image.shape[-1]==3:
+            b1 = torch.max(torch.abs(image[...,0]-image[...,1]))==0
+            b2 = torch.max(torch.abs(image[...,0]-image[...,2]))==0
+            return b1 and b2
+        return False
 
     def shape(self):
         return self.img.shape
+
+    def resize(self, resolution):
+        self.img = torch.from_numpy(self.resized(resolution))
+
+
+    def resized(self, resolution):
+        resized = cv2.resize(self.numpy(), (int(resolution[0]), int(resolution[1])), interpolation= cv2.INTER_LINEAR)
+        return resized
 
     def clone(self):
         return self.img.detach().clone()
@@ -47,12 +60,15 @@ class Image():
         else: return self.img
 
     def numpy(self):
-        return self.img.cpu().numpy()
+        return self.img.detach().cpu().numpy()
 
     def show(self, img_name="Unk", wk=0, drop_rate = 1):
         resized = cv2.resize(self.numpy(), (int(self.img.shape[1]/drop_rate), int(self.img.shape[0]/drop_rate)), interpolation= cv2.INTER_LINEAR)
-        cv2.imshow(img_name, self.numpy())
+        cv2.imshow(img_name, resized)
         cv2.waitKey(wk)
+
+    def save(self, img_path):
+        cv2.imwrite(img_path, self.img)
 
     def get_indices_with_val(self, val):
         indices = torch.nonzero(self.img == val)

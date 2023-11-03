@@ -1,7 +1,7 @@
 import torch
 
 class sphere():
-    def __init__(self, frame, radius):
+    def __init__(self, frame, radius=1):
         self.radius = radius
         self.frame = frame
 

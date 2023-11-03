@@ -142,11 +142,21 @@ class Mesh:
         self._laplacian = None
 
     def to(self, device):
-        mesh = Mesh(self.vertices.to(device), self.indices.to(device), device=device)
-        mesh._edges = self._edges.to(device) if self._edges is not None else None
-        mesh._connected_faces = self._connected_faces.to(device) if self._connected_faces is not None else None
-        mesh._laplacian = self._laplacian.to(device) if self._laplacian is not None else None
-        return mesh
+        self.vertices = self.vertices.to(device)
+        self.indices = self.indices.to(device)
+
+        if self.indices is not None:
+            self.compute_normals()
+
+        self._edges = None
+        self._connected_faces = None
+        self._laplacian = None
+
+        self.compute_connectivity()
+
+        self.device = device
+        
+        return self
 
     def detach(self):
         mesh = Mesh(self.vertices.detach(), self.indices.detach(), device=self.device)
@@ -187,7 +197,6 @@ class Mesh:
     @property
     def laplacian(self):
         if self._laplacian is None:
-            from nds.utils.geometry import compute_laplacian_uniform
             self._laplacian = compute_laplacian_uniform(self)
         return self._laplacian
 

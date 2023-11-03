@@ -35,6 +35,8 @@ try:
     from .figures import *
     from .plot import *
     from .mesh import Mesh, read_mesh, AABB
+    from .objects import Object
+    from .diff_renderer import Renderer
 except:
     from camera_cv import *
     from geometry_pose import *
@@ -42,10 +44,12 @@ except:
     from figures import *
     from plot import *
     from mesh import Mesh, read_mesh, AABB
+    from objects import Object
+    from diff_renderer import Renderer
 
 
 class Scene():
-    def __init__(self, data_dir, data_dataset, list_images, frames=None, device='cpu', load_images=None ):
+    def __init__(self, data_dir, data_dataset, list_images, frames=None, device='cpu', load_images=None, dtype=torch.float32 ):
         self.device=device
         self.data_dir = data_dir+"/"+data_dataset
         if not os.path.isdir(self.data_dir): raise TypeError("the path: "+self.data_dir+" doesn't exists")
@@ -55,12 +59,13 @@ class Scene():
         self.name_dataset = data_dataset
         self.list_images = list_images
         self.frames = frames
+        self.dtype = dtype
         print("dataset path: ",self.data_dir)
         if os.path.isfile(self.data_dir+"/"+self.mode+"/data.npz"):
-            self.data_type = "Blender"
+            self.data_type = "blender"
             self.init_blender(load_images)
         elif os.path.isfile(self.data_dir+"/"+self.mode+"/data_basler.npz"):
-            self.data_type = "Basler"
+            self.data_type = "basler"
             self.init_basler(load_images)
         else:
             print("not valid scene")
@@ -76,14 +81,16 @@ class Scene():
         # frames
         if self.mode == 'static':
             pass
-        elif self.frames == "All":
-            frames_available = [ int(f.split("_")[-1]) for f in list(os.listdir(self.data_dir+"/video")) if os.path.isdir(self.data_dir+"/video/"+f) ]
-            self.frames = frames_available
-        elif len(self.frames) == 1:
-            self.frames = [self.frames[0]]
-        else:
-            self.frames = range(self.frames[0],self.frames[1])
-            frames_available = [ int(f.split("_")[-1]) for f in list(os.listdir(self.data_dir+"/video")) if os.path.isdir(self.data_dir+"/video/"+f) ]
+        elif self.mode == "video":
+            list_frame_names = [ f for f in list(os.listdir(self.data_dir+"/video")) if os.path.isdir(self.data_dir+"/video/"+f) ]
+            list_frame_names.sort()
+            frames_available = [ int(f.split("_")[-1]) for f in list_frame_names ]
+            if self.frames == "All":
+                self.frames = frames_available
+            elif len(self.frames) == 1:
+                self.frames = [self.frames[0]]
+            else:
+                self.frames = range(self.frames[0],self.frames[1])
             for frame in self.frames: assert(frame in frames_available)
         self.n_frames = len(self.frames)
         self.n_cameras = len(self.camera_names)
@@ -91,10 +98,14 @@ class Scene():
         for j, cam_arr in enumerate(list(self.npz.values())):
             for i, frame in enumerate(self.frames):
                 cam = cam_arr.tolist()
+                cam = cam.to(self.device)
+                cam = cam.dtype(self.dtype)
                 cam_name = "Cam_"+str(j).zfill(3)
                 image_paths = self.get_imagepaths_from_path(self.data_dir+"/video/frame_"+str(frame).zfill(3), cam_name)
                 new_cam = cam.clone(same_intr=True, same_pose=True, image_paths=image_paths, name=cam_name)
-                if load_images is not None: new_cam.load_images(load_images, self.device)
+                # print(cam.typ)
+                # print(new_cam.intr.K.dtype)
+                if load_images is not None: new_cam.load_images(load_images)
                 self.cams[i][j] = new_cam
                 
 
@@ -113,12 +124,16 @@ class Scene():
         # frames
         if self.mode == 'static':
             self.frames = [self.npz["frame_static"].tolist()]
-        elif len(self.frames) == 1:
-            self.frames = [self.frames[0]]
-        else:
-            self.frames = range(self.frames[0],self.frames[1])
+        elif self.mode == "video":
             frames_available = [ int(f.split("_")[-1]) for f in list(os.listdir(self.data_dir+"/video")) if os.path.isdir(self.data_dir+"/video/"+f) ]
-            for frame in self.frames: assert(frame in frames_available)
+            frames_available.sort()
+            if self.frames == "All":
+                self.frames = frames_available
+            elif len(self.frames) == 1:
+                self.frames = [self.frames[0]]
+            else:
+                self.frames = range(self.frames[0],self.frames[1])
+                for frame in self.frames: assert(frame in frames_available)
         self.n_frames = len(self.frames)
 
 
@@ -133,22 +148,25 @@ class Scene():
                 if isinstance(cam_dict["pose"], Pose): pose = cam_dict["pose"]
                 else: pose = cam_dict["pose"][frame]
                 image_paths = self.get_imagepaths_from_path(self.data_dir+"/video/frame_"+str(frame), cam_name)
-                cam = Camera_cv(intrinsics= cam_dict["intrinsics"], pose=pose, frame=frame, image_paths=image_paths, name=cam_name+"_"+str(frame), device=self.device) 
-                if load_images is not None: cam.load_images(load_images, self.device)
+                cam = Camera_cv(intrinsics= cam_dict["intrinsics"], pose=pose, frame=frame, image_paths=image_paths, name=cam_name+"_"+str(frame), device=self.device, dtype=self.dtype) 
+                if load_images is not None: cam.load_images(load_images)
                 self.cams[i][j] = cam
         self.cams_flatten = [ cam for frame in self.cams for cam in frame]
 
         # load objects
         meshlist = [ file for file in os.listdir(self.mesh_dir) if pathlib.Path(file).suffix == ".obj"]
-        for j, (obj_name, obj_dict) in enumerate(self.tracked_objects.items()):
-            obj_file = obj_name+".obj"
-            assert(obj_file in meshlist)
-            mesh = read_mesh(self.mesh_dir+"/"+obj_file, device=self.device)
+        for j, (mesh_name, obj_dict) in enumerate(self.tracked_objects.items()):
+            mesh_file = mesh_name+".obj"
+            mesh_path = os.path.join(self.mesh_dir,mesh_file)
+            assert(mesh_file in meshlist)
+            mesh = read_mesh(mesh_path, device=self.device)
             mesh.compute_connectivity()
+            mesh = mesh.to(device=self.device)
             for i, frame in enumerate(self.frames):
                 if isinstance(obj_dict["pose"], Pose): pose = obj_dict["pose"]
                 else: pose = obj_dict["pose"][frame]
-                obj = { "mesh": mesh, "pose": pose.to(self.device) }
+                # obj = Object(mesh=mesh, pose=pose.to(device=self.device))
+                obj = Object(mesh=mesh, pose=pose, device=self.device)
                 self.objects[i][j] = obj
         self.objects_flatten = [ obj for frame in self.objects for obj in frame]
 
@@ -159,28 +177,7 @@ class Scene():
                 assert(cam.pose.units==units)
         for frame in self.objects:
             for obj in frame:
-                assert(obj["pose"].units==units)
-
-
-        # elif self.mode == 'static':
-
-        #     # load cameras
-        #     for j, (cam_name,cam_dict) in enumerate(self.npz["cameras"].tolist().items()) :
-        #         image_paths = self.get_imagepaths_from_path(self.data_dir+"/static", cam_name)
-        #         cam = Camera_cv(intrinsics= cam_dict["intrinsics"], pose=cam_dict["pose"], image_paths=image_paths, name=cam_name) 
-        #         self.cams[0][j] = cam
-
-        #     # load objects
-        #     meshlist = [ file for file in os.listdir(self.mesh_dir) if pathlib.Path(file).suffix == ".obj"]
-        #     for j, (obj_name, obj_dict) in enumerate(self.tracked_objects.items()):
-        #         obj_file = obj_name+".obj"
-        #         assert(obj_file in meshlist)
-        #         mesh = read_mesh(self.mesh_dir+"/"+obj_file)
-        #         obj = { "mesh": mesh, "pose": obj_dict["pose"] }
-        #         self.objects[0][j] = obj
-
-        # else: raise ValueError(f"{self.mode} is an invalid mode")
-
+                assert(obj.pose.units==units)
 
         print("Camera loader initialized")
 
@@ -192,7 +189,7 @@ class Scene():
         for f in folders:
             if f in self.list_images:
                 image_path = path+"/"+f+"/"+camera_name+".png"
-                print(image_path)
+                print("image path: "+image_path)
                 assert(os.path.isfile(image_path))
                 image_paths[f]=image_path
         return image_paths
@@ -207,19 +204,6 @@ class Scene():
     def cam_video_generator(self):
         for i in range(self.n_frames):
             yield self.get_set_of_cameras_from_frame(i)
-
-
-        # # if len(self.objects)==1:
-        # for obj in self.objects:
-        #     for frame in obj['dict'].keys():
-        #         frame['pose']
-        #     print(obj)
-        #     exit(1)
-        #     plotter.plot_mesh(obj, size)
-        # # else:
-        # #     for i, frame in enumerate(self.cams):
-        # #         for cam in frame:
-        # #             plotter.plot_cam(cam, size, i)
 
 
     def normalize_wrt_aabb(self, aabb, side_length:float=1):
@@ -251,10 +235,10 @@ class Scene():
         collected_meshes = []
         for frame in self.objects:
             for obj in frame:
-                if obj["pose"] not in collected_poses:
-                    collected_poses.append(obj["pose"])
-                if obj["mesh"] not in collected_meshes:
-                    collected_meshes.append(obj["mesh"])
+                if obj.pose not in collected_poses:
+                    collected_poses.append(obj.pose)
+                if obj.mesh not in collected_meshes:
+                    collected_meshes.append(obj.mesh)
         for pose in collected_poses:
             pose.move_location(t)
             pose.uniform_scale(s*2,units="normalized")
@@ -267,6 +251,7 @@ class Scene():
         for frame in self.cams:
             for cam in frame:
                 # cam.load_images()
+                # image = cam.get_image(image_name).swapped().clone().cpu().numpy()
                 image = cam.get_image(image_name).clone().cpu().numpy()
                 # wandb.log({"images": wandb.Image(image.numpy())})
                 images.append(image)
@@ -278,8 +263,7 @@ class Scene():
 
         if show:
             plt.show()
-
-        if not show:
+        else:
             plt.close(fig)
 
     def visualize_overlayed_images(self, image_name='rgb', show=True, save_path=None ):
@@ -290,7 +274,7 @@ class Scene():
             obj = self.objects[frame][0]
             for cam in cams: 
                 # cam.load_images()
-                overlayed = cam.get_overlayed_image(obj, image_name).detach().cpu().numpy()
+                overlayed = cam.get_overlayed_image(obj, image_name).clone().cpu().numpy()
                 images.append(overlayed)
         fig, axs = figures.create_mosaic_figure(images)
 
@@ -301,8 +285,7 @@ class Scene():
 
         if show:
             plt.show()
-
-        if not show:
+        else:
             plt.close(fig)
 
     def plot_cams(self, size=0.2):
@@ -314,9 +297,9 @@ class Scene():
     def plot_objects(self):
         for i, frame in enumerate(self.objects):
             for obj in frame:
-                v = obj["mesh"].get_transformed_vertices(obj["pose"])
-                # v = obj["mesh"].vertices
-                plotter.plot_mesh(v,obj["mesh"].indices , frame=i)
+                v = obj.mesh.get_transformed_vertices(obj.pose)
+                # v = obj.mesh.vertices
+                plotter.plot_mesh(v,obj.mesh.indices , frame=i)
 
     def show_frame_sequence(self, cam_id=0, image_name='rgb', wk=1):
         cams = list(map(list, zip(*self.cams)))
@@ -332,6 +315,29 @@ class Scene():
     def sample_rand_cams(self, n_cams:int = 1):
         cameras = np.random.choice(self.cams_flatten, n_cams, replace=False)
         return cameras
+
+    def test_diffrast_static(self):
+        # for each camera at frame 0
+        for cam in self.cams[0]:
+            # for each object at frame 0
+            for obj in self.objects[0]:
+                gbuffer = Renderer.diffrast(cam, obj, ['mask','position','normal'])
+                m = gbuffer['mask']
+                p = gbuffer['position']
+                n = gbuffer['normal']
+                idxs = m.nonzero()
+                n = n[idxs[:,0],idxs[:,1],:]
+                p = p[idxs[:,0],idxs[:,1],:]
+                # print(p.shape)
+                im = Image(img=gbuffer['normal'])
+                # plotter.plot_ray(p[:10000,...],n[:10000,...], length=0.05)
+                # im = Image(img=gbuffer['position'])
+                im.show()
+                plotter.plot_points(p)
+                plotter.show()
+                exit(1)
+        exit(1)
+
 
 
 

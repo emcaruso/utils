@@ -16,10 +16,11 @@ except:
 
 class Pose():
 
-    def __init__(self, T=torch.eye(4, dtype=torch.float32), units='meters'):
+    def __init__(self, T=torch.eye(4, dtype=torch.float32), units='meters', device='cpu'):
         assert(T.shape[-2:]==(4,4))
         self.T = T
         self.units = units
+        self.device = device
 
     def location(self): return self.T[...,:3,-1]
     def rotation(self): return self.T[...,:3,:3]
@@ -40,6 +41,7 @@ class Pose():
         self.set_location( T_tr[...,:3,:3]@self.location()+T_tr[...,:3,-1])
     def to(self, device):
         self.T = self.T.to(device)
+        self.device = device
         return self
     def dtype(self, dtype):
         self.T = self.T.to(dtype)

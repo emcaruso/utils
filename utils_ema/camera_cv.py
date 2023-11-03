@@ -54,8 +54,8 @@ class Camera_opencv:
 
 class Intrinsics():
     def __init__(self, K=torch.FloatTensor([[0.050,0,0.018],[0,0.050,0.018],[0,0,1]]), D=None, 
-                    resolution=torch.LongTensor([700,700]), sensor_size=torch.FloatTensor([0.036,0.036]), 
-                    units:str='meters', typ=torch.float32):
+                    resolution=torch.LongTensor([30,20]), sensor_size=torch.FloatTensor([0.030,0.020]), 
+                    units:str='meters', typ=torch.float32, device='cpu'):
         self.units = units
         self.typ = typ
         self.sensor_size = sensor_size
@@ -65,6 +65,7 @@ class Intrinsics():
         self.K_pix = self.get_K_in_pixels()
         self.K_und, self.K_pix_und, self.roi_und = self.get_K_und()
         self.dtype(typ)
+        self.device = device
 
     def cx(self): return self.K[...,0,2]
     def cy(self): return self.K[...,1,2]
@@ -81,9 +82,15 @@ class Intrinsics():
         if self.K_pix_und is not None: self.K_pix_und = self.K_pix_und.to(device)
         self.resolution = self.resolution.to(device)
         self.sensor_size = self.sensor_size.to(device)
+        self.device = device
         return self
     def dtype(self, dtype):
         self.K = self.K.to(dtype)
+        self.K_und = self.K_und.to(dtype)
+        self.K_pix = self.K_pix.to(dtype)
+        self.K_pix_und = self.K_pix_und.to(dtype)
+        self.sensor_size = self.sensor_size.to(dtype)
+        self.typ = dtype
         return self
     def uniform_scale(self, s:float, units:str="scaled" ):
         self.K[...,0,0]*=s
@@ -140,6 +147,7 @@ class Camera_cv():
         self.images = {}
         self.image_paths = image_paths
         self.typ = dtype
+        self.dtype(self.typ)
         if self.intr.units != self.pose.units: raise ValueError("frame units ("+self.pose.units+") and intrinsics units ("+self.intr.units+") must be the same")
         if load_images is not None: self.load_images( load_images, device)
 
@@ -157,10 +165,17 @@ class Camera_cv():
         new_cam = Camera_cv(new_intr, new_pose, image_paths, self.frame, name, device = self.device, dtype=self.typ)
         return new_cam
 
+    def dtype(self, dtyp):
+        self.pose = self.pose.dtype(dtyp)
+        self.intr = self.intr.dtype(dtyp)
+        self.typ = dtyp
+        return self
 
     def to(self, device):
         self.pose = self.pose.to(device)
         self.intr = self.intr.to(device)
+        self.device = device
+        return self
 
     def get_camera_opencv(self, device=None):
         if device is None:
@@ -170,16 +185,25 @@ class Camera_cv():
         R = self.pose.rotation()
         t = self.pose.location()
         self.pose.invert()
-        return Camera_opencv( K, R, t, device)
+        cam_cv = Camera_opencv( K, R, t, device)
 
-    def load_images(self, images=None, device='cpu'):
+        return cam_cv
+
+    def assert_image_shape(self, image):
+        r_imag = list(image.shape[:2])
+        r_intr = self.intr.resolution[[1,0]].tolist()
+        assert( r_imag == r_intr )
+
+    def load_images(self, images=None):
 
         if images is None:
             images = self.image_paths.keys()
 
         for image_name in images:
             image_path = self.image_paths[image_name]
-            self.images[image_name] = Image(path=image_path, device=device)
+            image = Image(path=image_path, device=self.device)
+            self.assert_image_shape(image)
+            self.images[image_name] = image
 
     def free_images(self):
         del self.images
@@ -200,37 +224,34 @@ class Camera_cv():
         for name in self.images.keys():
             self.show_image(name, wk)
 
-    def get_pixel_grid(self, n = None, longtens=False, device='cpu'):
+    def get_pixel_grid(self, n = None, device='cpu'):
         if n is None:
             n=self.intr.resolution
-        offs = (self.intr.resolution/n)/2
-        x_range = torch.linspace(offs[0], self.intr.resolution[0]-offs[0], n[0])  # 5 points from -1 to 1
-        y_range = torch.linspace(offs[1], self.intr.resolution[1]-offs[1], n[1])  # 5 points from -1 to 1
+        offs = (self.intr.resolution/n)*0.5
+        x_range = torch.linspace(offs[0], self.intr.resolution[0]-offs[0], n[0]).to(device)
+        y_range = torch.linspace(offs[1], self.intr.resolution[1]-offs[1], n[1]).to(device)
         X, Y = torch.meshgrid(x_range, y_range, indexing="ij")
-        grid = torch.cat( (X.unsqueeze(-1), Y.unsqueeze(-1)), dim=-1 )
-        grid = grid.to(device)
-        if longtens:
-            grid = torch.trunc(grid).to(torch.int32)
-        return grid
+        grid_pix = torch.cat( (X.unsqueeze(-1), Y.unsqueeze(-1)), dim=-1 )
+        grid_pix = torch.trunc(grid_pix).to(torch.int32)
+        return grid_pix
 
-    def sample_rand_pixs( self, num_pixels, longtens=False ):
-        pixels_idxs = torch.reshape(self.get_pixel_grid( ), (-1,len(self.intr.resolution)))
+    def sample_rand_pixs( self, num_pixels, device='cpu' ):
+        pixels_idxs = torch.reshape(self.get_pixel_grid( device=device), (-1,len(self.intr.resolution)))
         perm = torch.randperm(pixels_idxs.shape[0])
         n = min(pixels_idxs.shape[0],num_pixels )
         sampl_image_idxs = pixels_idxs[perm][:n]
-        if longtens:
-            sampl_image_idxs = torch.trunc(sampl_image_idxs).to(torch.int32)
         return sampl_image_idxs
 
-    def sample_rand_pixs_in_mask( self, percentage, mask, longtens=False ):
-        grid = self.get_pixel_grid( device=mask.device, longtens=longtens)
-        pixels_idxs = grid[ mask> 0]
+    def sample_rand_pixs_in_mask( self, mask, percentage=1):
+        self.assert_image_shape(mask)
+        m = mask.transpose(0,1)
+
+        grid = self.get_pixel_grid( device=mask.device)
+        pixels_idxs = grid[ m>0 ]
         if not pixels_idxs.numel(): return None
         pixels_idxs = torch.reshape(pixels_idxs, (-1,len(self.intr.resolution)))
         perm = torch.randperm(pixels_idxs.shape[0])
         sampl_image_idxs = pixels_idxs[perm][:(int(len(perm)*percentage))]
-        if longtens:
-            sampl_image_idxs = torch.trunc(sampl_image_idxs).to(torch.int32)
         return sampl_image_idxs
 
     def get_all_rays(self):
@@ -240,7 +261,7 @@ class Camera_cv():
 
     def pix2dir( self, pix ):
         pix = pix*self.intr.unit_pixel_ratio() # pixels to units
-        ndc = (pix - self.intr.sensor_size/2) / self.intr.lens()
+        ndc = (pix - self.intr.sensor_size*0.5) / self.intr.lens()
         dir = torch.cat( (ndc, torch.ones( list(ndc.shape[:-1])+[1] ).to(ndc.device) ), -1 )
         dir_norm = torch.nn.functional.normalize( dir, dim=-1 )
         return torch.matmul(dir_norm, self.pose.rotation().T.to(ndc.device))
@@ -259,12 +280,17 @@ class Camera_cv():
         # image = self.get_image(image_name)
         # bytes to float
         image = self.get_image(image_name).float()
-        gbuffer = Renderer.render(self, obj, ["mask"], with_antialiasing=True)
+        gbuffer = Renderer.diffrast(self, obj, ["mask"], with_antialiasing=True)
         overlayed = (gbuffer["mask"].to(image.device) + 1.0) * image
         # overlayed = (gbuffer["mask"].to(image.device)) * image
         # print(gbuffer["mask"].to(image.device))
         # print(image)
         overlayed = overlayed.clamp_(min=0.0, max=1.0).cpu()
+        # overlayed = torch.swapaxes(overlayed, 0,1)
+
+        # overlayed_img = Image(img=overlayed)
+        # overlayed_img.img =  overlayed_img.swapped()
+        # return overlayed_img
         return overlayed
 
     # projection
@@ -277,6 +303,18 @@ class Camera_cv():
         # points_wrt_cam = torch.matmul( points, T[...,:3,:3].transpose(-2,-1) ) + T[...,:3,-1] 
         points_wrt_cam = torch.matmul( points, T[...,:3,:3].transpose(-2,-1) ) + T[...,:3,-1] 
         return points_wrt_cam
+
+    def project_points_in_cam( self, points_wrt_cam, longtens=True):
+        assert(torch.is_tensor(points_wrt_cam))
+        assert(points_wrt_cam.shape[-1]==3)
+        assert(len(points_wrt_cam.shape)==2)
+        points_wrt_cam *= self.intr.pixel_unit_ratio()
+        uv = points_wrt_cam @ torch.transpose(self.intr.K_pix_und, -2,-1)
+        pixels = uv[..., :2] / uv[..., 2:]
+        # pixels = torch.index_select(pixels, 1, torch.LongTensor([1,0]))
+        if longtens:
+            pixels = torch.trunc(pixels).to(torch.int32)
+        return pixels
 
     def project_points_in_cam( self, points_wrt_cam, longtens=True):
         assert(torch.is_tensor(points_wrt_cam))
@@ -403,7 +441,12 @@ if __name__=="__main__":
     # c.sample_rand_pixs( 10 )
     c.pose.rotate_euler(eul(torch.FloatTensor([math.pi/4,math.pi/3,0])))
     c.pose.set_location(torch.FloatTensor([0.5,0.2,-0.1]))
-    pixs = c.get_pixel_grid( torch.LongTensor([10,10]) )
+    # pixs = c.get_pixel_grid(  )
+    # pixs = c.sample_rand_pixs( 10 )
+    mask = torch.ones( tuple(c.intr.resolution[[1,0]]))
+    print(mask.shape)
+    mask[:int(mask.shape[0]*0.25),:int(mask.shape[1]*0.75)]=0
+    pixs = c.sample_rand_pixs_in_mask(mask ) # test mask
     # pixs = c.sample_pixels( 10 )
     origin, dir = c.pix2ray( pixs )
     p = plotter

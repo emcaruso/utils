@@ -84,8 +84,8 @@ class plotter():
 
 
     @classmethod
-    def plot_points(cls, points, opacity=1, color='red', frame=None):
-        if torch.is_tensor(points): points=points.numpy()
+    def plot_points(cls, points, size=1, opacity=1, color='red', frame=None):
+        if torch.is_tensor(points): points=points.detach().cpu().numpy()
         cls.max_corner=max(np.max(np.abs(points)), cls.max_corner)
         points = go.Scatter3d(
             x = points[..., 0],
@@ -93,7 +93,7 @@ class plotter():
             z = points[..., 2],
             opacity=opacity,  # Set the transparency level (0 to 1, where 0 is fully transparent and 1 is fully opaque)
             mode = 'markers',
-            marker=dict( color=color )
+            marker=dict( color=color, size=size )
         )   
         cls.append_data(points, frame)
 
@@ -157,8 +157,8 @@ class plotter():
     @classmethod
     def plot_line(cls,start, end, opacity=1, color='blue', width=3, frame=None ):
         assert(len(start)==len(end))
-        if torch.is_tensor(start): start=start.numpy()
-        if torch.is_tensor(end): end=end.numpy()
+        if torch.is_tensor(start): start=start.detach().cpu().numpy()
+        if torch.is_tensor(end): end=end.detach().cpu().numpy()
         start = start.reshape( -1, start.shape[-1] )
         end = end.reshape( -1, end.shape[-1] )
         cls.max_corner=max(np.max(np.abs(start)), cls.max_corner)
@@ -215,10 +215,14 @@ class plotter():
         cls.plot_points(o, color='darkmagenta', frame=frame)
         camera.to(device)
 
+    @classmethod
+    def plot_dir(cls,dir, color='cyan', label='Rays', frame=None):
+        cls.plot_ray(torch.zeros_like(dir), dir, color=color, label=label, frame=frame)
 
     @classmethod
-    def plot_ray(cls,origin, dir, color='c', label='Rays', frame=None):
-        cls.plot_line(origin, origin+dir, color='cyan', frame=frame)
+    def plot_ray(cls,origin, dir, length=1, color='cyan', label='Rays', frame=None):
+        cls.plot_line(origin, origin+(dir*length), color=color, frame=frame)
+        cls.plot_points(origin, color='red', frame=frame)
 
     @classmethod
     def plot_frame(cls,pose, size=1, frame=None):
@@ -256,6 +260,10 @@ class plotter():
         )
 
         cls.append_data(mesh,frame)
+
+    # @classmethod
+    # def plot_sgs(cls, sgs):
+    #     plot_sphere(sphere(Pose()))
 
 
 
