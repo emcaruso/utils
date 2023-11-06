@@ -68,7 +68,7 @@ class Image():
         cv2.waitKey(wk)
 
     def save(self, img_path):
-        cv2.imwrite(img_path, self.img)
+        cv2.imwrite(img_path, self.numpy())
 
     def get_indices_with_val(self, val):
         indices = torch.nonzero(self.img == val)

@@ -242,7 +242,6 @@ class plotter():
 
     @classmethod
     def plot_mesh(cls, vertices, indices, opacity=1, color='lightblue', frame=None ):
-        device = vertices.device
         vertices = vertices.to("cpu")
         indices = indices.to("cpu")
         if torch.is_tensor(vertices): vertices=vertices.numpy()
@@ -260,6 +259,12 @@ class plotter():
         )
 
         cls.append_data(mesh,frame)
+
+    @classmethod
+    def plot_object(cls, object, opacity=1, color='lightblue', frame=None):
+        v = object.mesh.get_transformed_vertices(object.pose)
+        # v = object.mesh.vertices
+        plotter.plot_mesh(v,object.mesh.indices , frame=frame)
 
     # @classmethod
     # def plot_sgs(cls, sgs):

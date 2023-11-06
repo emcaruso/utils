@@ -2,7 +2,7 @@ import torch
 
 
 class PBR_Material():
-    def __init__(self, roughness, metallic, diffuse_albedo=None, specular_albedo=None, normal=None, dtype = torch.float32):
+    def __init__(self, roughness, metallic=None, diffuse_albedo=None, specular_albedo=None, normal=None, dtype = torch.float32):
         self.type = dtype
         self.set(roughness, metallic, diffuse_albedo, specular_albedo, normal)
 

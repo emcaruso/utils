@@ -1,8 +1,11 @@
 import numpy as np
 import nvdiffrast.torch as dr
 import torch
+from utils_ema.general import timing_decorator
 from utils_ema.image import Image
 from utils_ema.pbr_shader import PBR_Shader
+from utils_ema.user_mover import MoverOrbital
+from utils_ema.plot import plotter
 
 class Renderer:
     """ Rasterization-based triangle mesh renderer that produces G-buffers for a set of views.
@@ -90,8 +93,36 @@ class Renderer:
         return projection_matrix @ Rt
 
     @classmethod
-    def render_pbr(cls, camera, obj, light):
-        gbuffers = cls.diffrast(camera, obj, channels=['mask', 'position', 'normal'], with_antialiasing=True) 
+    def show_pbr_interactive(cls, camera, obj, light):
+        mover = MoverOrbital()
+
+        while True:
+            # update camera position
+            pose = mover.get_pose().to(camera.device)
+            # plotter.plot_cam(camera)
+            # plotter.plot_object(obj)
+            # camera.pose = pose
+            camera.pose.set_rotation(pose.rotation())
+            camera.pose.set_location(pose.location())
+            # plotter.plot_cam(camera)
+            # plotter.show()
+            image = cls.render_pbr(camera, obj, light)
+            image.show(img_name="Pred",wk=1, drop_rate=1)
+
+
+
+    @classmethod
+    def render_pbr(cls, camera, obj, light, get_time=True):
+        img, ex_time =  cls.render_pbr_aux(camera, obj, light)
+        if get_time:
+            print(f"rendering time: {ex_time} seconds")
+        return img
+
+
+    @classmethod
+    @timing_decorator
+    def render_pbr_aux(cls, camera, obj, light):
+        gbuffers = cls.diffrast(camera, obj, channels=['mask', 'position', 'normal'], with_antialiasing=False) 
         mask = (gbuffers["mask"] > 0).squeeze()
         # indexes = torch.nonzero(mask).squeeze()
 
