@@ -5,29 +5,29 @@ import time
 
 try:
     from .user_interface import User
-    from .geometry_direction import AzimuthElevation
+    from .geometry_direction import Direction
 except:
     from user_interface import User
-    from geometry_direction import AzimuthElevation
+    from geometry_direction import Direction
 
 class MoverOrbital():
 
     def __init__(self, orbital_speed=0.001):
-        self.azel = AzimuthElevation(torch.FloatTensor([0]),torch.FloatTensor([0]))
+        self.direction = Direction(torch.FloatTensor([0,0]))
         self.orbital_speed = orbital_speed
         self.user = User
         self.user.detect_for_orbital()
         self.inc = [0,0]
         self.last_time = 0
 
-    def get_pose(self):
+    def get_pose(self, distance=8):
         azimuth_inc =  -0.01*self.user.pos_delta[0]
         elevation_inc =  0.01*self.user.pos_delta[1]
         dt = time.time()-self.last_time
         self.inc=[azimuth_inc/dt, elevation_inc/dt]
-        self.azel.add_and_clamp(azimuth_inc, elevation_inc)
+        self.direction.add_and_clamp(azimuth_inc, elevation_inc)
         self.last_time = time.time()
-        return self.azel.to_pose_on_sphere()
+        return self.direction.to_pose_on_sphere(distance)
 
 
 # class Mover():  

@@ -20,16 +20,19 @@ class User():
 
     @staticmethod
     def on_press(key):
-        if key.char not in User.keys:
-            User.keys.append(key.char)
+        try:
+            if key.char not in User.keys:
+                User.keys.append(key.char)
+        except: pass
         time.sleep(User.dt)
 
     @staticmethod
     def on_release(key):
-        assert(key.char in User.keys)
-        User.keys.remove(key.char)
-        if key==keyboard.Key.esc:
-            return False
+        try:
+            User.keys.remove(key.char)
+            if key==keyboard.Key.esc:
+                return False
+        except: pass
 
 
     @staticmethod
@@ -46,6 +49,8 @@ class User():
                 User.pos_last = User.center
                 User.mouse_controller.position = tuple(User.center)
 
+            if 'q' in User.keys:
+                return False
             # if User.pos_delta[0]==0 and User.pos_delta[1]==0:
             #     break
 

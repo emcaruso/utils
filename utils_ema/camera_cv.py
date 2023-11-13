@@ -59,7 +59,7 @@ class Intrinsics():
         self.units = units
         self.typ = typ
         self.sensor_size = sensor_size
-        self.resolution = resolution
+        self.resolution = resolution  
         self.D = D
         self.K = K
         self.K_pix = self.get_K_in_pixels()
@@ -71,6 +71,25 @@ class Intrinsics():
     def cy(self): return self.K[...,1,2]
     def fx(self): return self.K[...,0,0]
     def fy(self): return self.K[...,1,1]
+
+    # def resize_pixels(self, resolution=None, resolution_drop=None):
+    #     assert( (resolution is None) != (resolution_drop is None) )
+    #     if(resolution is not None):
+    #         self.resolution = resolution
+    #         self.K_pix = self.get_K_in_pixels()
+    #         _, K_pix_und, self.roi_und = self.get_K_und()
+    #     elif(resolution_drop is not None):
+    #         self.resolution = (self.resolution*resolution_drop).type(torch.LongTensor)
+    #         self.K_pix = self.get_K_in_pixels()
+    #         _, K_pix_und, self.roi_und = self.get_K_und()
+    #     self.K_pix_und = K_pix_und.to(self.device)
+    def resize_pixels(self, resolution_drop=None):
+        self.resolution = (self.resolution*resolution_drop).type(torch.LongTensor)
+        self.K_pix = self.get_K_in_pixels()
+        _, K_pix_und, self.roi_und = self.get_K_und()
+        self.K_pix_und = K_pix_und.to(self.device)
+
+
     def pixel_unit_ratio(self): return self.resolution[0]/self.sensor_size[0]
     def unit_pixel_ratio(self): return self.sensor_size[0]/self.resolution[0]
     def lens(self): return torch.cat( (self.fx().unsqueeze(-1), self.fy().unsqueeze(-1)) , dim=-1)
@@ -116,9 +135,9 @@ class Intrinsics():
         if self.D is not None:
             w = int(self.resolution[0])
             h = int(self.resolution[1])
-            K_pix_und, roi_und = cv2.getOptimalNewCameraMatrix(self.K_pix.numpy(),self.D.numpy(),(w,h),alpha,(w,h), central_pp)
+            K_pix_und, roi_und = cv2.getOptimalNewCameraMatrix(self.K_pix.cpu().numpy(),self.D.cpu().numpy(),(w,h),alpha,(w,h), central_pp)
             K_pix_und = torch.from_numpy(K_pix_und) 
-            K_und = K_pix_und * self.unit_pixel_ratio()
+            K_und = K_pix_und * self.unit_pixel_ratio().cpu()
         else:
             K_und = self.K
             K_pix_und = self.K_pix
@@ -138,8 +157,10 @@ class Intrinsics():
 
 class Camera_cv():
 
-    def __init__(self, intrinsics = Intrinsics(), pose = Pose(), image_paths=None, frame=None, name="Unk Cam", load_images=None, device='cpu', dtype=torch.float32):
+    def __init__(self, intrinsics = Intrinsics(), pose = Pose(), image_paths=None, frame=None, name="Unk Cam", load_images=None, device='cpu', dtype=torch.float32, resolution_drop=1.):
+        self.images_loaded = load_images
         self.device = device
+        self.resolution_drop=resolution_drop
         self.name = name
         self.frame = frame
         self.pose = pose.to(device).dtype(dtype)
@@ -149,7 +170,13 @@ class Camera_cv():
         self.typ = dtype
         self.dtype(self.typ)
         if self.intr.units != self.pose.units: raise ValueError("frame units ("+self.pose.units+") and intrinsics units ("+self.intr.units+") must be the same")
-        if load_images is not None: self.load_images( load_images, device)
+        if load_images is not None: self.load_images(load_images, device)
+
+    def set_resolution_drop(self, resolution_drop):
+        if self.resolution_drop!=resolution_drop:
+            self.resolution_drop=resolution_drop
+            self.load_images(self.images_loaded)
+
 
     def clone(self, same_intr = False, same_pose = False, image_paths = None, name = None ):
 
@@ -201,7 +228,7 @@ class Camera_cv():
 
         for image_name in images:
             image_path = self.image_paths[image_name]
-            image = Image(path=image_path, device=self.device)
+            image = Image(path=image_path, device=self.device, resolution_drop=self.resolution_drop)
             self.assert_image_shape(image)
             self.images[image_name] = image
 
@@ -248,7 +275,8 @@ class Camera_cv():
 
         grid = self.get_pixel_grid( device=mask.device)
         pixels_idxs = grid[ m>0 ]
-        if not pixels_idxs.numel(): return None
+        if not pixels_idxs.numel():
+            return torch.empty((0, 2), dtype=torch.float32, device=self.device)
         pixels_idxs = torch.reshape(pixels_idxs, (-1,len(self.intr.resolution)))
         perm = torch.randperm(pixels_idxs.shape[0])
         sampl_image_idxs = pixels_idxs[perm][:(int(len(perm)*percentage))]
@@ -260,7 +288,7 @@ class Camera_cv():
         return origin, dir
 
     def pix2dir( self, pix ):
-        pix = pix*self.intr.unit_pixel_ratio() # pixels to units
+        pix = pix.to(self.device)*self.intr.unit_pixel_ratio() # pixels to units
         ndc = (pix - self.intr.sensor_size*0.5) / self.intr.lens()
         dir = torch.cat( (ndc, torch.ones( list(ndc.shape[:-1])+[1] ).to(ndc.device) ), -1 )
         dir_norm = torch.nn.functional.normalize( dir, dim=-1 )
@@ -283,8 +311,6 @@ class Camera_cv():
         gbuffer = Renderer.diffrast(self, obj, ["mask"], with_antialiasing=True)
         overlayed = (gbuffer["mask"].to(image.device) + 1.0) * image
         # overlayed = (gbuffer["mask"].to(image.device)) * image
-        # print(gbuffer["mask"].to(image.device))
-        # print(image)
         overlayed = overlayed.clamp_(min=0.0, max=1.0).cpu()
         # overlayed = torch.swapaxes(overlayed, 0,1)
 
@@ -444,7 +470,6 @@ if __name__=="__main__":
     # pixs = c.get_pixel_grid(  )
     # pixs = c.sample_rand_pixs( 10 )
     mask = torch.ones( tuple(c.intr.resolution[[1,0]]))
-    print(mask.shape)
     mask[:int(mask.shape[0]*0.25),:int(mask.shape[1]*0.75)]=0
     pixs = c.sample_rand_pixs_in_mask(mask ) # test mask
     # pixs = c.sample_pixels( 10 )

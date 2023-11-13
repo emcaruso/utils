@@ -3,9 +3,10 @@ import nvdiffrast.torch as dr
 import torch
 from utils_ema.general import timing_decorator
 from utils_ema.image import Image
-from utils_ema.pbr_shader import PBR_Shader
+# from utils_ema.pbr_shader import PBR_Shader
 from utils_ema.user_mover import MoverOrbital
 from utils_ema.plot import plotter
+from utils_ema.torch_utils import get_device
 
 class Renderer:
     """ Rasterization-based triangle mesh renderer that produces G-buffers for a set of views.
@@ -19,7 +20,6 @@ class Renderer:
     glctx = dr.RasterizeGLContext()
     near = 1
     far = 1000
-
 
     @classmethod
     def set_near_far(cls, cams, samples, epsilon=0.1):
@@ -92,56 +92,9 @@ class Renderer:
         Rt = gl_transform @ Rt
         return projection_matrix @ Rt
 
-    @classmethod
-    def show_pbr_interactive(cls, camera, obj, light):
-        mover = MoverOrbital()
-
-        while True:
-            # update camera position
-            pose = mover.get_pose().to(camera.device)
-            # plotter.plot_cam(camera)
-            # plotter.plot_object(obj)
-            # camera.pose = pose
-            camera.pose.set_rotation(pose.rotation())
-            camera.pose.set_location(pose.location())
-            # plotter.plot_cam(camera)
-            # plotter.show()
-            image = cls.render_pbr(camera, obj, light)
-            image.show(img_name="Pred",wk=1, drop_rate=1)
 
 
 
-    @classmethod
-    def render_pbr(cls, camera, obj, light, get_time=True):
-        img, ex_time =  cls.render_pbr_aux(camera, obj, light)
-        if get_time:
-            print(f"rendering time: {ex_time} seconds")
-        return img
-
-
-    @classmethod
-    @timing_decorator
-    def render_pbr_aux(cls, camera, obj, light):
-        gbuffers = cls.diffrast(camera, obj, channels=['mask', 'position', 'normal'], with_antialiasing=False) 
-        mask = (gbuffers["mask"] > 0).squeeze()
-        # indexes = torch.nonzero(mask).squeeze()
-
-        pixs = camera.sample_rand_pixs_in_mask( mask, percentage=1)
-        dirs = camera.pix2dir( pixs )
-
-        if pixs is None: return None
-
-        # images
-        position = gbuffers["position"]
-        normal = gbuffers["normal"]
-        shape = normal.shape
-
-        position = position[pixs[:, 1], pixs[:, 0], :]
-        normal = normal[pixs[:, 1], pixs[:, 0], :]
-
-        shaded = PBR_Shader.render_spherical( shape, pixs, position, normal, dirs, obj.material, light, device=position.device)
-
-        return Image(img=shaded)
 
     @classmethod
     def render_neural(cls, camera, obj, neural_shader):
@@ -168,10 +121,12 @@ class Renderer:
 
 
     @classmethod
-    def diffrast(cls, camera, obj, channels, with_antialiasing=True):
+    def diffrast(cls, camera, obj, channels, with_antialiasing=False):
+
+        device = get_device()
+        assert(device!='cpu')
 
         gbuffer = {}
-
 
         gl_cam = camera.get_camera_opencv()
         mesh = obj.mesh
@@ -183,8 +138,17 @@ class Renderer:
         r = camera.intr.resolution
         r = [r[1],r[0]]
         P = Renderer.to_gl_camera( gl_cam, r , n=cls.near, f=cls.far)
-        pos = Renderer.transform_pos(P, obj.mesh.vertices+obj.pose.location())
-        idx = obj.mesh.indices.int()
+        v = obj.mesh.vertices.detach().to(device)
+        l = obj.pose.location().detach().to(device)
+        n = obj.mesh.vertex_normals.detach().to(device)
+        pos = Renderer.transform_pos(P, v+l)
+        idx = obj.mesh.indices.detach().int().to(device)
+
+        # if pos.device.type == 'cpu':
+        #     pos = pos.to(device)
+        # if idx.device.type == 'cpu':
+        #     idx = idx.to(device)
+
         rast, rast_out_db = dr.rasterize(cls.glctx, pos, idx, resolution=r)
 
         # Collect arbitrary output variables (aovs)
@@ -193,17 +157,34 @@ class Renderer:
             gbuffer["mask"] = dr.antialias(mask, rast, pos, idx)[0] if with_antialiasing else mask[0]
 
         if "position" in channels or "depth" in channels:
-            position, _ = dr.interpolate(mesh.vertices[None, ...], rast, idx)
+            # position, _ = dr.interpolate(mesh.vertices[None, ...], rast, idx)
+            position, _ = dr.interpolate(v[None, ...], rast, idx)
             gbuffer["position"] = dr.antialias(position, rast, pos, idx)[0] if with_antialiasing else position[0]
 
         if "normal" in channels:
-            normal, _ = dr.interpolate(mesh.vertex_normals[None, ...], rast, idx)
+            # normal, _ = dr.interpolate(mesh.vertex_normals[None, ...], rast, idx)
+            normal, _ = dr.interpolate(n[None, ...], rast, idx)
             gbuffer["normal"] = dr.antialias(normal, rast, pos, idx)[0] if with_antialiasing else normal[0]
 
         if "depth" in channels:
             gbuffer["depth"] = camera.project(gbuffer["position"], depth_as_distance=True)[..., 2:3]
 
+        del pos, idx
+        torch.cuda.empty_cache()
+
         return gbuffer
 
 
+    @classmethod
+    def get_buffers_pixels_dirs(cls, camera, obj, shading_percentage=1):
+
+        gbuffers = Renderer.diffrast(camera, obj, channels=['mask', 'position', 'normal'], with_antialiasing=False)
+
+        # sample pixels in mask
+        mask = (gbuffers["mask"] > 0).squeeze()
+        pixs = camera.sample_rand_pixs_in_mask( mask, percentage=shading_percentage)
+        if pixs is None: return torch.empty(0,2)
+        dirs = camera.pix2dir( pixs ).to(mask.device)
+
+        return gbuffers, pixs, dirs
     

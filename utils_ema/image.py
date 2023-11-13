@@ -7,7 +7,7 @@ from PIL import Image, ImageFilter
 import torchvision.transforms as T
 
 class Image():
-    def __init__(self, img=None, path=None, gray=False, device='cpu'):
+    def __init__(self, img=None, path=None, gray=False, resolution_drop=1., device='cpu'):
         assert((img is None) ^ (path is None))
         self.device = device
         if img is not None:
@@ -15,20 +15,25 @@ class Image():
                 img = torch.from_numpy(img)
             self.img = img.to(device)
         if path is not None:
-            self.img = torch.from_numpy(cv2.imread(path)).to(device)
+            self.img = torch.from_numpy(cv2.imread(path)).to(device).permute((0,1,2))
             # self.img = self.swapped()
+
+        if resolution_drop!=1.:
+            self.resize(resolution_drop=resolution_drop)
 
         if self.is_grayscale(self.img):
             self.img = self.img[...,0]
             # self.img = self.img[...,0:1]
             # self.img = torch.mean( self.img, dim=-1, dtype=torch.uint8)
+
         self.shape = self.img.shape
 
     def swapped(self):
         return torch.swapaxes(self.img,0,1)
 
     def float(self):
-        return self.img.to(torch.float32)/255
+        img = self.img.type(torch.float32)/255
+        return img
 
     def is_grayscale( self, image ):
         if image.shape[-1]==3:
@@ -40,12 +45,19 @@ class Image():
     def shape(self):
         return self.img.shape
 
-    def resize(self, resolution):
-        self.img = torch.from_numpy(self.resized(resolution))
+    def resize(self, resolution=None, resolution_drop=None):
+        assert( (resolution is None) ^ (resolution_drop is None) )
+        if(resolution is not None):
+            self.img = torch.from_numpy(self.resized(resolution)).to(self.device)
+        elif(resolution_drop is not None):
+            r = self.resolution()*resolution_drop
+            self.img = torch.from_numpy(self.resized(r.type(torch.LongTensor))).to(self.device)
 
+    def resolution(self):
+        return torch.LongTensor([self.img.shape[0],self.img.shape[1]])
 
     def resized(self, resolution):
-        resized = cv2.resize(self.numpy(), (int(resolution[0]), int(resolution[1])), interpolation= cv2.INTER_LINEAR)
+        resized = cv2.resize(self.numpy(), (int(resolution[1]), int(resolution[0])), interpolation= cv2.INTER_LINEAR)
         return resized
 
     def clone(self):
@@ -62,8 +74,8 @@ class Image():
     def numpy(self):
         return self.img.detach().cpu().numpy()
 
-    def show(self, img_name="Unk", wk=0, drop_rate = 1):
-        resized = cv2.resize(self.numpy(), (int(self.img.shape[1]/drop_rate), int(self.img.shape[0]/drop_rate)), interpolation= cv2.INTER_LINEAR)
+    def show(self, img_name="Unk", wk=0, resolution_drop = 1):
+        resized = cv2.resize(self.numpy(), (int(self.img.shape[1]/resolution_drop), int(self.img.shape[0]/resolution_drop)), interpolation= cv2.INTER_LINEAR)
         cv2.imshow(img_name, resized)
         cv2.waitKey(wk)
 

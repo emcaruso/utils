@@ -49,7 +49,7 @@ except:
 
 
 class Scene():
-    def __init__(self, data_dir, data_dataset, list_images, frames=None, device='cpu', load_images=None, dtype=torch.float32 ):
+    def __init__(self, data_dir, data_dataset, list_images, frames=None, device='cpu', load_images=None, dtype=torch.float32, resolution_drop=1. ):
         self.device=device
         self.data_dir = data_dir+"/"+data_dataset
         if not os.path.isdir(self.data_dir): raise TypeError("the path: "+self.data_dir+" doesn't exists")
@@ -58,6 +58,7 @@ class Scene():
         self.mesh_dir = self.data_dir+"/meshes"
         self.name_dataset = data_dataset
         self.list_images = list_images
+        self.resolution_drop = resolution_drop
         self.frames = frames
         self.dtype = dtype
         print("dataset path: ",self.data_dir)
@@ -69,6 +70,7 @@ class Scene():
             self.init_basler(load_images)
         else:
             print("not valid scene")
+        self.resize_pixels(resolution_drop=resolution_drop)
 
     def init_basler(self, load_images):
         print("Loading Cameras from Basler data: "+self.name_dataset)
@@ -92,6 +94,7 @@ class Scene():
             else:
                 self.frames = range(self.frames[0],self.frames[1])
             for frame in self.frames: assert(frame in frames_available)
+
         self.n_frames = len(self.frames)
         self.n_cameras = len(self.camera_names)
         self.cams = [[None]*self.n_cameras for _ in range(self.n_frames)]
@@ -103,8 +106,6 @@ class Scene():
                 cam_name = "Cam_"+str(j).zfill(3)
                 image_paths = self.get_imagepaths_from_path(self.data_dir+"/video/frame_"+str(frame).zfill(3), cam_name)
                 new_cam = cam.clone(same_intr=True, same_pose=True, image_paths=image_paths, name=cam_name)
-                # print(cam.typ)
-                # print(new_cam.intr.K.dtype)
                 if load_images is not None: new_cam.load_images(load_images)
                 self.cams[i][j] = new_cam
                 
@@ -135,7 +136,6 @@ class Scene():
                 self.frames = range(self.frames[0],self.frames[1])
                 for frame in self.frames: assert(frame in frames_available)
         self.n_frames = len(self.frames)
-
 
         # get frames
         assert( os.path.isdir(self.data_dir+"/video") )
@@ -205,6 +205,19 @@ class Scene():
         for i in range(self.n_frames):
             yield self.get_set_of_cameras_from_frame(i)
 
+    def resize_pixels(self, resolution_drop=1.):
+
+        collected_intr = []
+        for frame in self.cams:
+            for camera in frame:
+                if camera.intr not in collected_intr:
+                    collected_intr.append(camera.intr)
+        for intr in collected_intr:
+            intr.resize_pixels(resolution_drop=resolution_drop)
+
+        for frame in self.cams:
+            for camera in frame:
+                camera.set_resolution_drop(resolution_drop)
 
     def normalize_wrt_aabb(self, aabb, side_length:float=1):
 
@@ -216,34 +229,54 @@ class Scene():
         s = float(np.float32(side_length / aabb.longest_extent))
 
         # normalize camera pose
-        collected_poses = []
-        collected_intr = []
-        for frame in self.cams:
-            for camera in frame:
-                if camera.pose not in collected_poses:
-                    collected_poses.append(camera.pose)
-                if camera.intr not in collected_intr:
-                    collected_intr.append(camera.intr)
-        for pose in collected_poses:
+        collected_cam_poses = self.collect_cam_poses()
+        collected_intr = self.collect_intrs()
+        collected_meshes = self.collect_meshes()
+        collected_obj_poses = self.collect_obj_poses()
+
+        for pose in collected_cam_poses:
             pose.move_location(t)
             pose.uniform_scale(s*2,units="normalized")
         for intr in collected_intr:
             intr.uniform_scale(s*2,units="normalized")
-
-        # normalize objects 
-        collected_poses = []
-        collected_meshes = []
-        for frame in self.objects:
-            for obj in frame:
-                if obj.pose not in collected_poses:
-                    collected_poses.append(obj.pose)
-                if obj.mesh not in collected_meshes:
-                    collected_meshes.append(obj.mesh)
-        for pose in collected_poses:
+        for pose in collected_obj_poses:
             pose.move_location(t)
             pose.uniform_scale(s*2,units="normalized")
         for mesh in collected_meshes:
             mesh.uniform_scale(s*2,units="normalized")
+
+    def collect_cam_poses(self):
+        collected_poses = []
+        for frame in self.cams:
+            for camera in frame:
+                if camera.pose not in collected_poses:
+                    collected_poses.append(camera.pose)
+        return collected_poses
+        
+    def collect_intrs(self):
+        collected_intr = []
+        for frame in self.cams:
+            for camera in frame:
+                if camera.intr not in collected_intr:
+                    collected_intr.append(camera.intr)
+        return collected_intr
+
+    def collect_meshes(self):
+        collected_meshes = []
+        for frame in self.objects:
+            for obj in frame:
+                if obj.mesh not in collected_meshes:
+                    collected_meshes.append(obj.mesh)
+        return collected_meshes
+        
+    def collect_obj_poses(self):
+        collected_poses = []
+        for frame in self.objects:
+            for obj in frame:
+                if obj.pose not in collected_poses:
+                    collected_poses.append(obj.pose)
+        return collected_poses
+        
 
     # visualization
     def visualize_images(self, image_name='rgb', show=True, save_path=None):

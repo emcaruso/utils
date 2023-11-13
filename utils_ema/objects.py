@@ -23,4 +23,4 @@ class Object():
 
     def set(self, key, value):
         assert(hasattr(self,key))
-        setattr(self,key,value.to(self.device))
+        setattr(self,key,value)

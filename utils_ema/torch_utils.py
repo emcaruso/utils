@@ -3,6 +3,14 @@ import numpy as np
 import os
 import random
 
+def get_device():
+    # Select the device
+    device = torch.device('cpu')
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+    return device
+
+
 def set_seed(seed: int = 42) -> None:
     np.random.seed(seed)
     random.seed(seed)
