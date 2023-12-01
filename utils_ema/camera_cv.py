@@ -240,7 +240,11 @@ class Camera_cv():
         image = self.get_image(img_name)
         image.show(img_name,wk)
 
-    def get_image(self, img_name="rgb"):
+    def get_image(self, img_name=None):
+        if img_name is None:
+            assert( len(self.images)==1 )
+            return list(self.images.values())[0]
+
         image = self.images[img_name]
         # if torch.is_tensor(image):
         #     image = image.numpy()
@@ -276,7 +280,8 @@ class Camera_cv():
         grid = self.get_pixel_grid( device=mask.device)
         pixels_idxs = grid[ m>0 ]
         if not pixels_idxs.numel():
-            return torch.empty((0, 2), dtype=torch.float32, device=self.device)
+            # return torch.empty((0, 2), dtype=torch.float32, device=self.device)
+            return None
         pixels_idxs = torch.reshape(pixels_idxs, (-1,len(self.intr.resolution)))
         perm = torch.randperm(pixels_idxs.shape[0])
         sampl_image_idxs = pixels_idxs[perm][:(int(len(perm)*percentage))]
@@ -325,9 +330,12 @@ class Camera_cv():
         assert(points.shape[-1]==3)
         assert(len(points.shape)==2)
         points = points.to(self.typ)
-        T = self.pose.get_inverse()
+        # T = self.pose.get_T_inverse()
+        R_inv = self.pose.get_R_inv()
+        t_inv = self.pose.get_t_inv()
+
         # points_wrt_cam = torch.matmul( points, T[...,:3,:3].transpose(-2,-1) ) + T[...,:3,-1] 
-        points_wrt_cam = torch.matmul( points, T[...,:3,:3].transpose(-2,-1) ) + T[...,:3,-1] 
+        points_wrt_cam = torch.matmul( points, R_inv.transpose(-2,-1) ) + t_inv 
         return points_wrt_cam
 
     def project_points_in_cam( self, points_wrt_cam, longtens=True):
@@ -336,23 +344,14 @@ class Camera_cv():
         assert(len(points_wrt_cam.shape)==2)
         points_wrt_cam *= self.intr.pixel_unit_ratio()
         uv = points_wrt_cam @ torch.transpose(self.intr.K_pix_und, -2,-1)
-        pixels = uv[..., :2] / uv[..., 2:]
+        d = uv[..., 2:]
+        pixels = uv[..., :2] / d
         # pixels = torch.index_select(pixels, 1, torch.LongTensor([1,0]))
         if longtens:
             pixels = torch.trunc(pixels).to(torch.int32)
-        return pixels
 
-    def project_points_in_cam( self, points_wrt_cam, longtens=True):
-        assert(torch.is_tensor(points_wrt_cam))
-        assert(points_wrt_cam.shape[-1]==3)
-        assert(len(points_wrt_cam.shape)==2)
-        points_wrt_cam *= self.intr.pixel_unit_ratio()
-        uv = points_wrt_cam @ torch.transpose(self.intr.K_pix_und, -2,-1)
-        pixels = uv[..., :2] / uv[..., 2:]
-        # pixels = torch.index_select(pixels, 1, torch.LongTensor([1,0]))
-        if longtens:
-            pixels = torch.trunc(pixels).to(torch.int32)
-        return pixels
+        return pixels, d
+
 
     def project_points_opencv( self, points ):
         #points from units to pixels
@@ -371,13 +370,16 @@ class Camera_cv():
         proj_points = proj_points.astype('int32')
         return proj_points
 
-    def project_points( self, points, longtens=True ):
+    def project_points( self, points, longtens=True, return_depth = False ):
         assert(torch.is_tensor(points))
         assert(points.shape[-1]==3)
         assert(len(points.shape)==2)
         points_wrt_cam = self.get_points_wrt_cam(points)
-        pixels = self.project_points_in_cam( points_wrt_cam, longtens)
-        return pixels
+        pixels, d = self.project_points_in_cam( points_wrt_cam, longtens)
+        if return_depth: 
+            return pixels, d
+        else:
+            return pixels
 
 
 
@@ -465,7 +467,8 @@ if __name__=="__main__":
     # c = Camera_on_sphere()
     c = Camera_cv()
     # c.sample_rand_pixs( 10 )
-    c.pose.rotate_euler(eul(torch.FloatTensor([math.pi/4,math.pi/3,0])))
+    c.pose.rotate_by_euler(eul(torch.FloatTensor([math.pi/4,math.pi/4,0])))
+    # c.pose.rotate_by_euler(eul(torch.FloatTensor([math.pi/4,0,0])))
     c.pose.set_location(torch.FloatTensor([0.5,0.2,-0.1]))
     # pixs = c.get_pixel_grid(  )
     # pixs = c.sample_rand_pixs( 10 )

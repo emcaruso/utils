@@ -277,6 +277,14 @@ class Scene():
                     collected_poses.append(obj.pose)
         return collected_poses
         
+    def collect_materials(self):
+        collected_materials = []
+        for frame in self.objects:
+            for obj in frame:
+                if obj.material not in collected_materials:
+                    collected_materials.append(obj.material)
+        return collected_materials
+        
 
     # visualization
     def visualize_images(self, image_name='rgb', show=True, save_path=None):

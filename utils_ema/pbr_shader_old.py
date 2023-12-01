@@ -31,7 +31,7 @@ class PBR_Shader():
 
 
     @classmethod
-    def render_spherical(cls, cam, obj, light, device='cpu'):
+    def render_spherical(cls, cam, obj, light):
 
         with torch.no_grad():
             rgb, pixels = cls.render_spherical_pixels(cam, obj, light)
@@ -41,7 +41,7 @@ class PBR_Shader():
             img = torch.zeros( res ).to(pixels.device)
             img[pixels[:,1],pixels[:,0],:] = rgb
 
-            return Image(img=img, device=device)
+            return Image(img=img.cpu())
 
     @staticmethod
     def render_spherical_pixels(cam, obj, L_i):
@@ -51,7 +51,7 @@ class PBR_Shader():
 
         # clamp light
         # L_i.lobe_sharp = torch.clamp(L_i.lobe_sharp, min=0)
-        # L_i.lobe_ampl = torch.clamp(L_i.lobe_ampl, min=0.)
+        # L_i.lobe_ampl = torch.clamp(L_i.lobe_ampl, min=-10000)
 
         gbuffers, pixs, view_dirs = Renderer.get_buffers_pixels_dirs(cam, obj, shading_percentage=1,channels=['mask','normal'])
 
@@ -90,12 +90,9 @@ class PBR_Shader():
         # gauss_mask = light.get_gauss_mask_hemisphere(n)
 
         # dot products
-        wo_dot_h = torch.clamp(torch.sum(w_o*h, dim=-1), min=0.)
-        wo_dot_n = torch.clamp(torch.sum(w_o*n, dim=-1), min=0.)
-        wi_dot_n = torch.clamp(torch.sum(w_i*n, dim=-1), min=0.)
-        # wo_dot_h = torch.sum(w_o*h, dim=-1)
-        # wo_dot_n = torch.sum(w_o*n, dim=-1)
-        # wi_dot_n = torch.sum(w_i*n, dim=-1)
+        wo_dot_h = torch.clamp(torch.sum(w_o*h, dim=-1), min=0)
+        wo_dot_n = torch.clamp(torch.sum(w_o*n, dim=-1), min=0)
+        wi_dot_n = torch.clamp(torch.sum(w_i*n, dim=-1), min=0)
         # mask = (wi_dot_n>0).unsqueeze(-1)
 
         # cosine gauss
@@ -113,9 +110,9 @@ class PBR_Shader():
         fresnel = torch.pow( sa.unsqueeze(0) + (1-sa.unsqueeze(0))*2, ( (-5.55474*wo_dot_h.unsqueeze(-1)+6.8316)*wo_dot_h.unsqueeze(-1)) )
         geometric = ((wo_dot_n/(wo_dot_n*(1-k)+k)) * (wi_dot_n/(wi_dot_n*(1-k)+k))).unsqueeze(-1)
         M_D = torch.clamp(4*wo_dot_n*wi_dot_n, min=TINY_NUMBER).unsqueeze(-1)
-        # M_D = (4*wo_dot_n*wi_dot_n).unsqueeze(-1)
         M_N = fresnel*geometric
         M = M_N/M_D
+        # M = (fresnel*geometric)/(torch.clamp(4*wo_dot_n*wi_dot_n, min=TINY_NUMBER).unsqueeze(-1))
 
 
         # brdf specular
@@ -129,8 +126,7 @@ class PBR_Shader():
         # brdf_axis = torch.nn.functional.normalize(2 * wi_dot_n.unsqueeze(-1) * n - w_i, dim=-1)
         brdf_axis = torch.nn.functional.normalize(2 * wo_dot_n.unsqueeze(-1) * n - w_o, dim=-1)
         # brdf_axis = 2 * wo_dot_n.unsqueeze(-1) * n - w_o
-        brdf_sharp = brdf_sharp / (4 * torch.clamp(torch.sum(brdf_axis*n, dim=-1), min=0.).unsqueeze(-1) + TINY_NUMBER)
-        # brdf_sharp = brdf_sharp / (4 * torch.sum(brdf_axis*n, dim=-1).unsqueeze(-1) + TINY_NUMBER)
+        brdf_sharp = brdf_sharp / (4 * torch.clamp(torch.sum(brdf_axis*n, dim=-1), min=0).unsqueeze(-1) + TINY_NUMBER)
         brdf_ampl = brdf_ampl
         brdf_dict = { 'lobe_axis': Direction(brdf_axis), 'lobe_sharp': brdf_sharp, 'lobe_ampl': brdf_ampl }
         Brdf_spec = SphericalGaussians( sgs_dict=brdf_dict, device = normal.device )
@@ -164,7 +160,7 @@ class PBR_Shader():
         # rgb = rgb_spec
         rgb = rgb_diff+rgb_spec
 
-        rgb = torch.clamp(rgb, min=0., max=1.)
+        rgb = torch.clamp(rgb, min=0, max=1)
 
         return rgb, pixs
 

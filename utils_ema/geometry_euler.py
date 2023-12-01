@@ -1,9 +1,27 @@
 import torch
 
 class eul():
-    def __init__(self, e=torch.zeros([3]), convention="YXZ"):
+    def __init__(self, e=torch.zeros([3]), convention="YXZ", device='cpu'):
         self.e = e
         self.convention = convention
+        self.device = device
+
+    def to(self, device):
+        self.e = self.e.to(device)
+        self.device=device
+        return self
+
+    def normalize_angles(self):
+        return (self.e + torch.pi) % (2 * torch.pi) - torch.pi
+
+    def rotate_by_R(self, R ):
+        # new_rot = R @ self.eul2rot()
+        new_rot = self.eul2rot() @ R
+        new_eul = self.rot2eul(new_rot)
+        self.e = new_eul.e
+
+    def rotate_by_euler(self, e ):
+        self.rotate_by_R(e.eul2rot())
 
     def eul2rot(self):
         # match self.convention:
@@ -42,6 +60,7 @@ class eul():
         r2 = torch.cat( (r21.unsqueeze(-1), r22.unsqueeze(-1), r23.unsqueeze(-1)), dim =-1)
         r3 = torch.cat( (r31.unsqueeze(-1), r32.unsqueeze(-1), r33.unsqueeze(-1)), dim =-1)
         rot = torch.cat( (r1.unsqueeze(-1), r2.unsqueeze(-1), r3.unsqueeze(-1)), dim =-1)
+        rot = rot.transpose(-2, -1) # TOCHECKKKKKKKKK
         rot = rot.to(self.e.device)
         return rot
         
@@ -63,3 +82,18 @@ class eul():
         r33 = c1*c2
         rot = torch.FloatTensor( [[r11, r12, r13],[r21, r22, r23],[r31, r32, r33]]  )
         return rot
+    
+    def rot2eul(self, R= torch.eye(3) ):
+        if self.convention == "YXZ":
+            return eul.rot2eul_YXZ(R)
+
+
+    @staticmethod
+    def rot2eul_YXZ(R= torch.eye(3) ):
+        e1 = torch.atan2(R[...,0,2],R[...,2,2]+1e-6)
+        e2 = torch.asin(-R[...,1,2])
+        e3 = torch.atan2(R[...,1,0],R[...,1,1]+1e-6)
+        e_flat = torch.cat( ( e1.unsqueeze(-1),e2.unsqueeze(-1),e3.unsqueeze(-1) ) )
+        euler = eul(e_flat)
+        return euler
+

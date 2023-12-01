@@ -1,6 +1,7 @@
 import cv2
 import torch
 import os, sys
+from matplotlib import pyplot as plt
 import numpy as np
 import torch.nn.functional as F
 from PIL import Image, ImageFilter
@@ -21,7 +22,8 @@ class Image():
         if resolution_drop!=1.:
             self.resize(resolution_drop=resolution_drop)
 
-        if self.is_grayscale(self.img):
+        if gray:
+        # if self.is_grayscale(self.img):
             self.img = self.img[...,0]
             # self.img = self.img[...,0:1]
             # self.img = torch.mean( self.img, dim=-1, dtype=torch.uint8)
@@ -32,6 +34,8 @@ class Image():
         return torch.swapaxes(self.img,0,1)
 
     def float(self):
+        if self.img.dtype == torch.float32:
+            return self.img
         img = self.img.type(torch.float32)/255
         return img
 
@@ -41,6 +45,16 @@ class Image():
             b2 = torch.max(torch.abs(image[...,0]-image[...,2]))==0
             return b1 and b2
         return False
+
+    def get_gray_cmap( self , cmap='viridis'):
+        dtype = self.img.dtype
+        c = plt.get_cmap(cmap)
+        colormap_tensor = c(self.img.cpu().view(-1).numpy())
+        s = self.img.squeeze().shape
+        rgb_tensor = torch.from_numpy(colormap_tensor[:, :3]).view( tuple(list(s)+[3]) ).to(self.device)
+        rgb_tensor = rgb_tensor.type(dtype)
+        return rgb_tensor
+
 
     def shape(self):
         return self.img.shape
@@ -106,4 +120,50 @@ class Image():
         # cv2.imshow("",image_curr.numpy())
         # cv2.waitKey(0)
         return image_curr
+
+    import torch.nn.functional as F
+
+def eval_bilinear(pixels):
+    """
+    Perform bilinear interpolation on an RGB image.
+
+    Args:
+    - uv_coordinates (torch.Tensor): UV coordinates tensor of shape [batch_size, 2].
+
+    Returns:
+    - interpolated_rgb (torch.Tensor): Interpolated RGB values tensor of shape [batch_size, 3].
+    """
+
+    # Get image dimensions
+    height, width, _ = self.img.shape
+
+    # assert(pixes.dtype = torch.float32)
+
+    # print(pixels)
+
+    # top_left     = pixels.+torch.tensor([-1,-1]).to(pixs.device)
+    # top_right    = pixels+torch.tensor([-1, 1]).to(pixs.device)
+    # bottom_left  = pixels+torch.tensor([ 1,-1]).to(pixs.device)
+    # bottom_right = pixels+torch.tensor([ 1, 1]).to(pixs.device)
+
+    exit(1)
+
+
+    # Extract fractional parts for interpolation
+    frac_x = uv_coordinates_normalized[:, 0] - floor_coords[:, 0].float()
+    frac_y = uv_coordinates_normalized[:, 1] - floor_coords[:, 1].float()
+
+    # Get the pixel values at the four corners
+    top_left = self.img[floor_coords[:, 1], floor_coords[:, 0]]
+    top_right = self.img[floor_coords[:, 1], ceil_coords[:, 0]]
+    bottom_left = self.img[ceil_coords[:, 1], floor_coords[:, 0]]
+    bottom_right = self.img[ceil_coords[:, 1], ceil_coords[:, 0]]
+
+    # Bilinear interpolation
+    top_interpolation = top_left * (1 - frac_x) + top_right * frac_x
+    bottom_interpolation = bottom_left * (1 - frac_x) + bottom_right * frac_x
+
+    interpolated_rgb = top_interpolation * (1 - frac_y) + bottom_interpolation * frac_y
+
+    return interpolated_rgb
 

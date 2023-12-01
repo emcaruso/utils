@@ -5,12 +5,18 @@ import numpy as np
 def read_mesh(path, device='cpu'):
     mesh_ = trimesh.load_mesh(str(path), process=False)
 
+    # print(len(mesh_.visual.uv))
+    # print(len(mesh_.vertices))
+    # print(len(mesh_.faces))
+    # exit(1)
+
     vertices = np.array(mesh_.vertices, dtype=np.float32)
+    uv = np.array(mesh_.visual.uv, dtype=np.float32)
     indices = None
     if hasattr(mesh_, 'faces'):
         indices = np.array(mesh_.faces, dtype=np.int32)
 
-    return Mesh(vertices, indices, device)
+    return Mesh(vertices=vertices, indices=indices, uv=uv, device=device)
 
 def write_mesh(path, mesh):
     path = Path(path)
@@ -127,12 +133,13 @@ class Mesh:
         device (torch.device): Device where the mesh buffers are stored
     """
 
-    def __init__(self, vertices, indices, device='cpu', units='meters'):
+    def __init__(self, vertices, indices, uv=None, device='cpu', units='meters'):
         self.device = device
         self.units = units
 
         self.vertices = vertices.to(device, dtype=torch.float32) if torch.is_tensor(vertices) else torch.tensor(vertices, dtype=torch.float32, device=device)
         self.indices = indices.to(device, dtype=torch.int64) if torch.is_tensor(indices) else torch.tensor(indices, dtype=torch.int64, device=device) if indices is not None else None
+        self.uv = uv.to(device, dtype=torch.float32) if torch.is_tensor(uv) else torch.tensor(uv, dtype=torch.float32, device=device) if uv is not None else None
 
         if self.indices is not None:
             self.compute_normals()
@@ -176,7 +183,7 @@ class Mesh:
 
         assert len(vertices) == len(self.vertices)
 
-        mesh_new = Mesh(vertices, self.indices, self.device)
+        mesh_new = Mesh(vertices, self.indices, self.uv, self.device)
         mesh_new._edges = self._edges
         mesh_new._connected_faces = self._connected_faces
         mesh_new._laplacian = self._laplacian

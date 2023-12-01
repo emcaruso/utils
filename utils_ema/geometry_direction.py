@@ -48,7 +48,16 @@ class Direction():
             torch.sin(self.azel[...,1]) ],dim=-1) 
         return direction
 
-    #3d vector to azimuth and elevation
+    ##3d vector to azimuth and elevation
+    #def azel_from_vec3D(self, input):
+    #    assert(input.shape[-1]==3)
+    #    # x = input[...,0].unsqueeze(-1)
+    #    # y = input[...,1].unsqueeze(-1)
+    #    # z = input[...,2].unsqueeze(-1)
+    #    x = input[...,0]
+    #    y = input[...,1]
+    #    z = input[...,2]
+    #    return torch.stack( (torch.atan2(y, x+1e-8), torch.atan2(z, torch.sqrt( (torch.pow(x,2) + torch.pow(y,2))+1e-8))), dim=-1)
     def azel_from_vec3D(self, input):
         assert(input.shape[-1]==3)
         # x = input[...,0].unsqueeze(-1)
@@ -57,18 +66,22 @@ class Direction():
         x = input[...,0]
         y = input[...,1]
         z = input[...,2]
-        return torch.stack( (torch.atan2(y, x), torch.atan2(z, torch.sqrt(x**2 + y**2))), dim=-1)
+        # xy_norm = torch.sqrt((torch.pow(x,2) + torch.pow(y,2)))
+        xy_norm = torch.norm( torch.cat( (x.unsqueeze(-1), y.unsqueeze(-1) ), dim=-1), dim=-1 )
+        return torch.stack( (torch.atan2(y, x+1e-3), torch.atan2(z, xy_norm+1e-3)), dim=-1)
 
     # direction to pose on a sphere
     def to_pose_on_sphere(self, distance = 8):
         e = eul(torch.FloatTensor([self.azel[...,0], self.azel[...,1], 0]))
-        pose = Pose(T=torch.eye(4, dtype=torch.float32), device=self.device)
+        pose = Pose()
+        pose.set_pose_from_T(torch.eye(4, dtype=torch.float32))
+        pose.to(self.device)
         # pose.set_euler(e)
         # pose.rotate_euler(eul(torch.FloatTensor([0,-math.pi*0.5,math.pi])))
-        pose.rotate_euler(eul(torch.FloatTensor([0,-math.pi*0.5,0])))
-        pose.rotate_euler(eul(torch.FloatTensor([0,0,math.pi])))
-        pose.rotate_euler(eul(torch.FloatTensor([e.e[0],0,0])))
-        pose.rotate_euler(eul(torch.FloatTensor([0,e.e[1],0])))
+        pose.rotate_by_euler(eul(torch.FloatTensor([0,-math.pi*0.5,0])))
+        # pose.rotate_by_euler(eul(torch.FloatTensor([0,0,math.pi])))
+        pose.rotate_by_euler(eul(torch.FloatTensor([e.e[0],0,0])))
+        pose.rotate_by_euler(eul(torch.FloatTensor([0,e.e[1],0])))
         # pose.rotate_euler(eul(torch.FloatTensor([0,-math.pi*0.5,0])))
         pose.move_location_local(torch.FloatTensor([0,0,-distance]))
         return pose

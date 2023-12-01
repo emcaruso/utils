@@ -21,22 +21,36 @@ class SphericalGaussians():
             assert(n_sgs is not None)
             constr_axes = [ (-math.pi, math.pi), (-math.pi*0.4, math.pi*0.4) ] # azimuth, elevation 
             # generate random lobe axes
+            self.n_sgs = n_sgs
             if gen_axis == 'rand':
-                self.n_sgs = n_sgs
                 az = (torch.rand(n_sgs, device=device)*2-1)*math.pi
                 el = (torch.rand(n_sgs, device=device)*2-1)*math.pi*0.4
                 azel = torch.stack( (az,el), dim=-1 )
                 self.lobe_axis = Direction(input=azel, requires_grad=requires_grad)
 
 
+            # if gen_axis == 'uniform':
+            #     self.n_sgs = int(n_sgs**2*0.5)
+            #     az = torch.linspace(-math.pi, math.pi, int(n_sgs)+1, device=device)[:-1]
+            #     el = torch.linspace(-math.pi*0.4, math.pi*0.4, int(n_sgs*0.5), device=device)
+            #     AZ, EL = torch.meshgrid(az, el, indexing="ij")
+            #     azel = torch.stack( (AZ.unsqueeze(-1),EL.unsqueeze(-1)), dim=-1 )
+            #     azel = azel.view(-1,2)
+            #     self.lobe_axis = Direction(input=azel, requires_grad=requires_grad)
+
             if gen_axis == 'uniform':
-                self.n_sgs = int(n_sgs**2*0.5)
-                az = torch.linspace(-math.pi, math.pi, int(n_sgs)+1, device=device)[:-1]
-                el = torch.linspace(-math.pi*0.4, math.pi*0.4, int(n_sgs*0.5), device=device)
-                AZ, EL = torch.meshgrid(az, el, indexing="ij")
-                azel = torch.stack( (AZ.unsqueeze(-1),EL.unsqueeze(-1)), dim=-1 )
-                azel = azel.view(-1,2)
+                goldenRatio = (1 + 5**0.5)/2
+                i = torch.arange(self.n_sgs, dtype=torch.float32)
+                az = (2 * math.pi * i / goldenRatio) - math.pi
+                az = torch.remainder(az + math.pi, 2 * math.pi) - math.pi
+                el = torch.acos(1 - 2 * (i+0.5) / float(self.n_sgs)) - math.pi/2
+                azel = torch.stack( (az,el), dim=-1 ).to(device)
                 self.lobe_axis = Direction(input=azel, requires_grad=requires_grad)
+
+                # i = arange(0, n)
+                # theta = 2 *pi * i / goldenRatio
+                # phi = arccos(1 - 2*(i+0.5)/n)
+                # x, y, z = cos(theta) * sin(phi), sin(theta) * sin(phi), cos(phi);
 
                 # azel = torch.stack( (az,el), dim=-1 )
                 # self.lobe_axis = torch.stack([torch.cos(AZ) * torch.cos(EL), torch.sin(AZ) * torch.cos(EL), torch.sin(EL) ],dim=-1) 
@@ -158,18 +172,19 @@ class SphericalGaussians():
         # x = x.view(-1,3)
 
         rgb = self.eval_and_integrate(x)
-        img = Image(rgb)
 
         if normalize:
-            img.img -= torch.min(img.img)
-            img.img /= torch.max(img.img)
+            rgb -= torch.min(rgb)
+            rgb /= torch.max(rgb)
+
+        img = Image(rgb)
         img.resize(resolution=[400,800])
         return img
 
-    def show_envmap( self, name="unk", resolution=256, normalize=True ):
+    def show_envmap( self, name="unk", resolution=256, normalize=True, wk=0 ):
 
         img = self.get_envmap( name=name, resolution=resolution, normalize=normalize )
-        img.show(img_name=name, wk=0)
+        img.show(img_name=name, wk=wk)
 
         
     # def get_gauss_mask_hemisphere( self, dirs):
@@ -191,14 +206,15 @@ class SphericalGaussians():
 if __name__ == "__main__":
     set_seed(666)
     # sgs = SphericalGaussians(n_sgs=32)
-    sgs = SphericalGaussians(n_sgs=32, gen_axis='rand')
+    sgs = SphericalGaussians(n_sgs=64, gen_axis='uniform')
+    # sgs = SphericalGaussians(n_sgs=128, gen_axis='rand')
     # sgs.eval(torch.Tensor([[0,0],[0,0],[0,0],[0,0]]))
     sgs.show_envmap()
 
 
-    n = np.random.choice(range(len(sgs.lobe_axis)),16, replace=False)
-    dirs = sgs.lobe_axis[n]
-    # sgs.get_gauss_in_hemisphere(dirs)
-    sgs.get_list_of_gauss_for_each_view(dirs)
+    # n = np.random.choice(range(len(sgs.lobe_axis)),16, replace=False)
+    # dirs = sgs.lobe_axis[n]
+    # # sgs.get_gauss_in_hemisphere(dirs)
+    # sgs.get_list_of_gauss_for_each_view(dirs)
 
 

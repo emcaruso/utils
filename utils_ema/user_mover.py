@@ -26,8 +26,10 @@ class MoverOrbital():
         dt = time.time()-self.last_time
         self.inc=[azimuth_inc/dt, elevation_inc/dt]
         self.direction.add_and_clamp(azimuth_inc, elevation_inc)
+        # self.direction.add_and_clamp(azimuth_inc, 0)
         self.last_time = time.time()
-        return self.direction.to_pose_on_sphere(distance)
+        p = self.direction.to_pose_on_sphere(distance)
+        return p
 
 
 # class Mover():  

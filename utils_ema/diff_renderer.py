@@ -26,11 +26,13 @@ class Renderer:
         """ Automatically adjust the near and far plane distance
         """
 
+        device = cams[0][0].device
+
         mins = []
         maxs = []
         for frame in cams:
             for cam in frame:
-                samples_projected = cam.project(samples, depth_as_distance=True)
+                samples_projected = cam.project(samples.to(device), depth_as_distance=True)
                 mins.append(samples_projected[...,2].min())
                 maxs.append(samples_projected[...,2].max())
 
@@ -121,7 +123,7 @@ class Renderer:
 
 
     @classmethod
-    def diffrast(cls, camera, obj, channels, with_antialiasing=False):
+    def diffrast(cls, camera, obj, channels, with_antialiasing=False, get_rast_idx=False):
 
         device = get_device()
         assert(device!='cpu')
@@ -129,25 +131,32 @@ class Renderer:
         gbuffer = {}
 
         gl_cam = camera.get_camera_opencv()
-        mesh = obj.mesh
-        # print(obj.mesh.device)
-        # print(obj.pose.device)
-        # exit(1)
-
-        # Rasterize only once
         r = camera.intr.resolution
         r = [r[1],r[0]]
         P = Renderer.to_gl_camera( gl_cam, r , n=cls.near, f=cls.far)
-        v = obj.mesh.vertices.detach().to(device)
-        l = obj.pose.location().detach().to(device)
-        n = obj.mesh.vertex_normals.detach().to(device)
-        pos = Renderer.transform_pos(P, v+l)
-        idx = obj.mesh.indices.detach().int().to(device)
+        l = obj.pose.location().to(device)
+        R = obj.pose.rotation().to(device)
+        v_mesh = obj.mesh.vertices.to(device)
 
-        # if pos.device.type == 'cpu':
-        #     pos = pos.to(device)
-        # if idx.device.type == 'cpu':
-        #     idx = idx.to(device)
+        # v = obj.mesh.vertices.to(device)
+        # n = obj.mesh.vertex_normals.to(device)
+        # idx = obj.mesh.indices.int().to(device)
+        # R = obj.pose.rotation().to(device)
+        # # pos = Renderer.transform_pos(P, ( v@R.t() )+l)
+        # pos = Renderer.transform_pos(P, v+l)
+
+
+        # v = obj.mesh.vertices+l
+        # n = obj.mesh.vertex_normals.to(device)
+        # pos = Renderer.transform_pos(P, v)
+        # idx = obj.mesh.indices.int().to(device)
+
+        v = (v_mesh@R.t()) + l
+        mesh = obj.mesh.with_vertices( v )
+        # v = mesh.vertices.to(device)
+        n = mesh.vertex_normals.to(device)
+        idx = mesh.indices.int().to(device)
+        pos = Renderer.transform_pos(P, v)
 
         rast, rast_out_db = dr.rasterize(cls.glctx, pos, idx, resolution=r)
 
@@ -159,31 +168,38 @@ class Renderer:
         if "position" in channels or "depth" in channels:
             # position, _ = dr.interpolate(mesh.vertices[None, ...], rast, idx)
             position, _ = dr.interpolate(v[None, ...], rast, idx)
+            # gbuffer["position"] = gbuffer["mask"]
             gbuffer["position"] = dr.antialias(position, rast, pos, idx)[0] if with_antialiasing else position[0]
 
         if "normal" in channels:
             # normal, _ = dr.interpolate(mesh.vertex_normals[None, ...], rast, idx)
             normal, _ = dr.interpolate(n[None, ...], rast, idx)
+            # gbuffer["normal"] = gbuffer["position"]
             gbuffer["normal"] = dr.antialias(normal, rast, pos, idx)[0] if with_antialiasing else normal[0]
 
         if "depth" in channels:
             gbuffer["depth"] = camera.project(gbuffer["position"], depth_as_distance=True)[..., 2:3]
 
-        del pos, idx
-        torch.cuda.empty_cache()
+        # del pos, idx
+        # torch.cuda.empty_cache()
+        if get_rast_idx:
+            return gbuffer, rast, idx
 
         return gbuffer
 
 
     @classmethod
-    def get_buffers_pixels_dirs(cls, camera, obj, shading_percentage=1):
+    def get_buffers_pixels_dirs(cls, camera, obj, shading_percentage=1, channels=['mask', 'position', 'normal']):
 
-        gbuffers = Renderer.diffrast(camera, obj, channels=['mask', 'position', 'normal'], with_antialiasing=False)
+        if 'mask' not in channels:
+            channels += 'mask'
+
+        gbuffers = Renderer.diffrast(camera, obj, channels=channels, with_antialiasing=False)
 
         # sample pixels in mask
         mask = (gbuffers["mask"] > 0).squeeze()
         pixs = camera.sample_rand_pixs_in_mask( mask, percentage=shading_percentage)
-        if pixs is None: return torch.empty(0,2)
+        if pixs is None: return None, None, None
         dirs = camera.pix2dir( pixs ).to(mask.device)
 
         return gbuffers, pixs, dirs
