@@ -15,11 +15,18 @@ except:
 
 class Pose():
 
-    def __init__(self, euler:eul = eul(torch.zeros([3], dtype=torch.float32)), position = torch.zeros([3], dtype=torch.float32) , units='meters', device='cpu'):
+    def __init__(self, euler:eul = eul(torch.zeros([3], dtype=torch.float32)), position = torch.zeros([3], dtype=torch.float32), T=None , units='meters', device='cpu'):
         assert(isinstance(euler,eul))
         assert(torch.is_tensor(position))
-        self.euler = euler
-        self.position = position
+
+        if T is not None:
+            self.euler = euler
+            self.euler = self.euler.rot2eul( R= T[...,:3,:3] )
+            self.position = T[...,:3,-1]
+        else:
+            self.euler = euler
+            self.position = position
+
         self.units = units
         self.device = device
 
@@ -42,7 +49,7 @@ class Pose():
         assert(torch.is_tensor(R))
         self.euler = self.euler.rot2eul(R)
     def set_euler(self, e):
-        assert(isinstance(e, euler))
+        assert(isinstance(e, eul))
         self.euler = e
     def rotate_by_R(self, R):
         self.euler.rotate_by_R(R)
@@ -83,6 +90,18 @@ class Pose():
     def get_t_inv(self):
         R_inv = self.get_R_inv()
         return - R_inv @ self.location()
+
+    def get_T(self):
+        R = self.rotation()
+        t = self.location()
+        new_shape = list(R.shape)
+        new_shape[-1]=4
+        new_shape[-2]=4
+        T = torch.zeros( *new_shape , dtype= t.dtype)
+        T[...,:3,:3] = R
+        T[...,:3,-1] = t
+        T[...,3,3] = 1
+        return T
 
     def get_T_inverse(self):
         R_inv = self.rotation().transpose(-2,-1)

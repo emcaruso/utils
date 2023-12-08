@@ -84,8 +84,8 @@ class Intrinsics():
     #         _, K_pix_und, self.roi_und = self.get_K_und()
     #     self.K_pix_und = K_pix_und.to(self.device)
     def resize_pixels(self, resolution_drop=None):
-        self.resolution = (self.resolution*resolution_drop).type(torch.LongTensor)
-        self.K_pix = self.get_K_in_pixels()
+        self.resolution = (self.resolution*resolution_drop).type(torch.LongTensor).to(self.device)
+        self.K_pix = self.get_K_in_pixels().to(self.device)
         _, K_pix_und, self.roi_und = self.get_K_und()
         self.K_pix_und = K_pix_und.to(self.device)
 

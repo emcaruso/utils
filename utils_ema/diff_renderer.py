@@ -50,6 +50,14 @@ class Renderer:
 
     @staticmethod
     def projection(fx, fy, cx, cy, n, f, width, height, device):
+        # print(fx.device)
+        # print(fy.device)
+        # print(cx.device)
+        # print(cy.device)
+        # print(width.device)
+        # print(height.device)
+        # print(n.device)
+        # print(f.device)
         """
         Returns a gl projection matrix
         The memory order of image data in OpenGL, and consequently in nvdiffrast, is bottom-up.
@@ -189,15 +197,22 @@ class Renderer:
 
 
     @classmethod
-    def get_buffers_pixels_dirs(cls, camera, obj, shading_percentage=1, channels=['mask', 'position', 'normal']):
+    def get_buffers_pixels_dirs(cls, camera, obj, shading_percentage=1, channels=['mask', 'position', 'normal'], no_contour=True):
 
         if 'mask' not in channels:
             channels += 'mask'
 
         gbuffers = Renderer.diffrast(camera, obj, channels=channels, with_antialiasing=False)
 
+        if no_contour:
+            gbuffers["mask"][0,:] = 0
+            gbuffers["mask"][:,0] = 0
+            gbuffers["mask"][-1,:] = 0
+            gbuffers["mask"][:,-1] = 0
+
         # sample pixels in mask
         mask = (gbuffers["mask"] > 0).squeeze()
+
         pixs = camera.sample_rand_pixs_in_mask( mask, percentage=shading_percentage)
         if pixs is None: return None, None, None
         dirs = camera.pix2dir( pixs ).to(mask.device)

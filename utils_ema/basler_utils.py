@@ -27,7 +27,7 @@ class frame_extractor:
         self.camera = pylon.InstantCamera(pylon.TlFactory.GetInstance().CreateFirstDevice())
         self.camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
 
-    def start_cams(self, num_cameras:int = None, signal_period:int = 200000, exposure_time:int = 10000):
+    def start_cams(self, num_cameras:int = None, signal_period:int = 250000, exposure_time:int = 10000):
 
         # get devices
         if num_cameras is None: num_cameras = len(self.devices)

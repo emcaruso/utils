@@ -6,6 +6,7 @@ import numpy as np
 import torch.nn.functional as F
 from PIL import Image, ImageFilter
 import torchvision.transforms as T
+from skimage import feature, filters
 
 class Image():
     def __init__(self, img=None, path=None, gray=False, resolution_drop=1., device='cpu'):
@@ -16,7 +17,8 @@ class Image():
                 img = torch.from_numpy(img)
             self.img = img.to(device)
         if path is not None:
-            self.img = torch.from_numpy(cv2.imread(path)).to(device).permute((0,1,2))
+            self.img = torch.from_numpy(cv2.imread(path)).to(device)
+            self.img = self.img[:,:,[2,1,0]]
             # self.img = self.swapped()
 
         if resolution_drop!=1.:
@@ -51,7 +53,7 @@ class Image():
         c = plt.get_cmap(cmap)
         colormap_tensor = c(self.img.cpu().view(-1).numpy())
         s = self.img.squeeze().shape
-        rgb_tensor = torch.from_numpy(colormap_tensor[:, :3]).view( tuple(list(s)+[3]) ).to(self.device)
+        rgb_tensor = torch.flip(torch.from_numpy(colormap_tensor[:, :3]), dims=[-1]).view( tuple(list(s)+[3]) ).to(self.device)
         rgb_tensor = rgb_tensor.type(dtype)
         return rgb_tensor
 
@@ -79,7 +81,7 @@ class Image():
 
     def gray(self):
         if len(self.shape)>2:
-            gray = self.img.to(torch.float32)
+            gray = self.float()
             gray = gray.mean(dim=-1)
             # return gray.to
             return gray
@@ -102,16 +104,20 @@ class Image():
         return indices
 
     def sobel(self):
-        trans_lookup = T.Compose([
-            T.Grayscale(),
-            T.ToPILImage(),
-        ])
-        img_new = self.clone()
-        img_new = trans_lookup(torch.swapaxes(self.img,0,-1))
-        img_new = img_new.filter(ImageFilter.FIND_EDGES)
-        img_new = T.ToTensor()(img_new)  # Convert the image to a PyTorch tensor
-        img_new = torch.swapaxes(img_new,0,-1)
+        # trans_lookup = T.Compose([
+        #     T.Grayscale(),
+        #     T.ToPILImage(),
+        # ])
+        # img_new = self.clone()
+        # img_new = trans_lookup(torch.swapaxes(self.img,0,-1))
+        # # img_new = img_new.filter(ImageFilter.FIND_EDGES)
+        # img_new = feature.canny(img_new)
+        # img_new = T.ToTensor()(img_new)  # Convert the image to a PyTorch tensor
+        # img_new = torch.swapaxes(img_new,0,-1)
 
+        # print(self.gray().numpy().shape)
+        # img_new = torch.from_numpy(feature.canny(self.gray().numpy()))
+        img_new = torch.from_numpy(filters.sobel(self.gray().numpy()))
         return Image(img_new)
 
     def max_pooling(self, kernel_size=5):
@@ -123,47 +129,24 @@ class Image():
 
     import torch.nn.functional as F
 
-def eval_bilinear(pixels):
-    """
-    Perform bilinear interpolation on an RGB image.
+    def eval_bilinear(self, pixels, top_left):
 
-    Args:
-    - uv_coordinates (torch.Tensor): UV coordinates tensor of shape [batch_size, 2].
+        top_right       = top_left+torch.tensor([1,0], device=pixels.device)
+        bottom_left     = top_left+torch.tensor([0,1], device=pixels.device)
+        bottom_right    = top_left+torch.tensor([1,1], device=pixels.device)
 
-    Returns:
-    - interpolated_rgb (torch.Tensor): Interpolated RGB values tensor of shape [batch_size, 3].
-    """
+        frac_vertical = ( (pixels[:,1] - top_left[:,1])*0.5 ).unsqueeze(-1)
+        frac_horizont = ( (pixels[:,0] - top_left[:,0])*0.5 ).unsqueeze(-1)
 
-    # Get image dimensions
-    height, width, _ = self.img.shape
+        img = self.float().to(pixels.device)
+        top_left_rgb     = img[top_left[:,1].int()     , top_left[:,0].int()]
+        top_right_rgb    = img[top_right[:,1].int()    , top_right[:,0].int()]
+        bottom_left_rgb  = img[bottom_left[:,1].int()  , bottom_left[:,0].int()]
+        bottom_right_rgb = img[bottom_right[:,1].int() , bottom_right[:,0].int()]
 
-    # assert(pixes.dtype = torch.float32)
+        top_interpolation = top_left_rgb * (1 - frac_horizont) + top_right_rgb * frac_horizont
+        bottom_interpolation = bottom_left_rgb * (1 - frac_horizont) + bottom_right_rgb * frac_horizont
+        interpolated_rgb = top_interpolation * (1 - frac_vertical) + bottom_interpolation * frac_vertical
 
-    # print(pixels)
-
-    # top_left     = pixels.+torch.tensor([-1,-1]).to(pixs.device)
-    # top_right    = pixels+torch.tensor([-1, 1]).to(pixs.device)
-    # bottom_left  = pixels+torch.tensor([ 1,-1]).to(pixs.device)
-    # bottom_right = pixels+torch.tensor([ 1, 1]).to(pixs.device)
-
-    exit(1)
-
-
-    # Extract fractional parts for interpolation
-    frac_x = uv_coordinates_normalized[:, 0] - floor_coords[:, 0].float()
-    frac_y = uv_coordinates_normalized[:, 1] - floor_coords[:, 1].float()
-
-    # Get the pixel values at the four corners
-    top_left = self.img[floor_coords[:, 1], floor_coords[:, 0]]
-    top_right = self.img[floor_coords[:, 1], ceil_coords[:, 0]]
-    bottom_left = self.img[ceil_coords[:, 1], floor_coords[:, 0]]
-    bottom_right = self.img[ceil_coords[:, 1], ceil_coords[:, 0]]
-
-    # Bilinear interpolation
-    top_interpolation = top_left * (1 - frac_x) + top_right * frac_x
-    bottom_interpolation = bottom_left * (1 - frac_x) + bottom_right * frac_x
-
-    interpolated_rgb = top_interpolation * (1 - frac_y) + bottom_interpolation * frac_y
-
-    return interpolated_rgb
+        return interpolated_rgb
 

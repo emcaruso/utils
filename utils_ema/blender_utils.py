@@ -152,7 +152,7 @@ def generate_camera_from_camcv(cam, name):
     lens = ((K[0,0]+K[1,1])/2)*1000
     camera_data.lens = lens
     # extrinsics
-    camera_object.matrix_world=Matrix(cam.pose.T.numpy())
+    camera_object.matrix_world=Matrix(cam.pose.get_T().numpy())
     blenderTransform( camera_object )
     return camera_object, camera_data
 
