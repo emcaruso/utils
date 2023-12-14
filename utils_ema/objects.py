@@ -1,14 +1,15 @@
 
 try:
-    from .mesh import *
+    from .mesh import Mesh, AABB
 except:
-    from mesh import *
+    from mesh import Mesh, AABB
 
 class Object():
-    def __init__(self, mesh=None, pose=None, material=None, device='cpu'):
+    def __init__(self, mesh=None, pose=None, material=None, textures=None, device='cpu'):
         self.device = device
         self.mesh = mesh
         self.pose = pose
+        self.textures = textures
         self.material = material
         self.to(device)
 
@@ -24,3 +25,19 @@ class Object():
     def set(self, key, value):
         assert(hasattr(self,key))
         setattr(self,key,value)
+
+    def get_vertices_from_pose(self):
+        l = self.pose.location().to(self.device)
+        R = self.pose.rotation().to(self.device)
+        v = (self.mesh.vertices@R.t()) + l
+        return v
+
+    def get_aabb(self, consider_pose=True):
+
+        if not consider_pose:
+            v = self.vertices.cpu().numpy()
+        else:
+            v = get_vertices_from_pose().cpu().numpy()
+
+        aabb = AABB(v)
+        return aabb

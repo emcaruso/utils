@@ -27,7 +27,7 @@ class frame_extractor:
         self.camera = pylon.InstantCamera(pylon.TlFactory.GetInstance().CreateFirstDevice())
         self.camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
 
-    def start_cams(self, num_cameras:int = None, signal_period:int = 250000, exposure_time:int = 10000):
+    def start_cams(self, num_cameras:int = None, signal_period:int = 250000, exposure_time:int = 20000):
 
         # get devices
         if num_cameras is None: num_cameras = len(self.devices)
@@ -61,9 +61,11 @@ class frame_extractor:
         assert(self.cam_array.IsGrabbing())
 
         images = [None] * self.num_cameras
+        img_nr = -1
         while True:
             # Wait for an image and then retrieve it. A timeout of 5000 ms is used.
             grabResult = self.cam_array.RetrieveResult(timeout, pylon.TimeoutHandling_ThrowException)
+            # img_nr = grabResult.ImageNumber
 
             # Image grabbed successfully?
             if grabResult.GrabSucceeded():

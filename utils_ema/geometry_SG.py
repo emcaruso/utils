@@ -73,24 +73,67 @@ class SphericalGaussians():
         # self.lobe_ampl = self.lobe_ampl.to(device)
         # self.lobe_sharp = self.lobe_sharp.to(device)
 
-    def __mul__(self, other):
+    def set_learning_rates( self, lr_axis, lr_sharp, lr_ampl ):
+        if isinstance(lr, float):
+            self.lr_axis = torch.ones_like(self.lobe_sharp) * lr_axis
+            self.lr_sharp = torch.ones_like(self.lobe_sharp) * lr_sharp
+            self.lr_ampl = torch.ones_like(self.lobe_sharp) * lr_ampl
 
-        lin_comb = self.lobe_sharp * self.lobe_axis.vec3D() + other.lobe_sharp * other.lobe_axis.vec3D()
 
-        new_sharp = torch.norm(lin_comb, dim=-1).unsqueeze(-1)
-        new_axis = Direction(input = (lin_comb/new_sharp) )
-        new_ampl = self.lobe_ampl * other.lobe_ampl * torch.exp(new_sharp - self.lobe_sharp - other.lobe_sharp)
-
-        # print(torch.max(self.lobe_sharp), "\n",torch.max(other.lobe_sharp),"\n",torch.max(new_sharp),"\nnew_sharp")
-        # print(torch.min(self.lobe_sharp), "\n",torch.min(other.lobe_sharp),"\n",torch.min(new_sharp),"\nnew_sharp")
-
-        sgs_dict = { "lobe_axis":new_axis, "lobe_sharp":new_sharp, "lobe_ampl":new_ampl }
+    def __add__(self, other):
+        lobe_ampl = torch.cat( (self.lobe_ampl, other.lobe_ampl), dim=0 )
+        lobe_sharp = torch.cat( (self.lobe_sharp, other.lobe_sharp), dim=0 )
+        lobe_axis = self.lobe_axis + other.lobe_axis
+        sgs_dict = { "lobe_axis":lobe_axis, "lobe_sharp":lobe_sharp, "lobe_ampl":lobe_ampl }
         return SphericalGaussians(sgs_dict=sgs_dict, device=self.device)
+        return SphericalGaussians(sgs_dict=sgs_dict, device=self.device)
+
+    def __mul__(self, other):
+        lambda1 = self.lobe_sharp
+        lambda2 = other.lobe_sharp
+        lobe1 = self.lobe_axis.vec3D()
+        lobe2 = other.lobe_axis.vec3D()
+        mu1 = self.lobe_ampl
+        mu2 = other.lobe_ampl
+
+        ratio = lambda1 / lambda2
+
+        dot = torch.sum(lobe1 * lobe2, dim=-1, keepdim=True)
+        tmp = torch.sqrt(ratio * ratio + 1. + 2. * ratio * dot)
+        tmp = torch.min(tmp, ratio + 1.)
+
+        lambda3 = lambda2 * tmp
+        lambda1_over_lambda3 = ratio / tmp
+        lambda2_over_lambda3 = 1. / tmp
+        diff = lambda2 * (tmp - ratio - 1.)
+
+        final_lobes = Direction(lambda1_over_lambda3 * lobe1 + lambda2_over_lambda3 * lobe2)
+        final_lambdas = lambda3
+        final_mus = mu1 * mu2 * torch.exp(diff)
+
+        sgs_dict = { "lobe_axis":final_lobes, "lobe_sharp":final_lambdas, "lobe_ampl":final_mus }
+        return SphericalGaussians(sgs_dict=sgs_dict, device=self.device)
+
+
+    # def __mul__(self, other):
+
+    #     lin_comb = self.lobe_sharp * self.lobe_axis.vec3D() + other.lobe_sharp * other.lobe_axis.vec3D()
+
+    #     new_sharp = torch.norm(lin_comb, dim=-1).unsqueeze(-1)
+    #     new_axis = Direction(input = (lin_comb/new_sharp) )
+    #     new_ampl = self.lobe_ampl * other.lobe_ampl * torch.exp(new_sharp - self.lobe_sharp - other.lobe_sharp)
+    #     # new_ampl = self.lobe_ampl * other.lobe_ampl 
+
+    #     # print(torch.max(self.lobe_sharp), "\n",torch.max(other.lobe_sharp),"\n",torch.max(new_sharp),"\nnew_sharp")
+    #     # print(torch.min(self.lobe_sharp), "\n",torch.min(other.lobe_sharp),"\n",torch.min(new_sharp),"\nnew_sharp")
+
+    #     sgs_dict = { "lobe_axis":new_axis, "lobe_sharp":new_sharp, "lobe_ampl":new_ampl }
+    #     return SphericalGaussians(sgs_dict=sgs_dict, device=self.device)
 
     def hemisphere_int(self, n, free=True):
 
         cos_beta = torch.sum( self.lobe_axis.vec3D()*n, dim=-1, keepdim=True)
-        lambda_val = self.lobe_sharp + 0.00001
+        lambda_val = self.lobe_sharp + 0.001
         # orig impl; might be numerically unstable
         # t = torch.sqrt(lambda_val) * (1.6988 * lambda_val * lambda_val + 10.8438 * lambda_val) / (lambda_val * lambda_val + 6.2201 * lambda_val + 10.2415)
 
@@ -157,7 +200,7 @@ class SphericalGaussians():
         return rgb
 
 
-    def get_envmap( self, name="unk", resolution=256, normalize=True ):
+    def get_envmap( self, name="unk", resolution=256, normalize=False ):
         # Generate the grid points
         az = -torch.linspace(-math.pi, math.pi, resolution*2)
         el = -torch.linspace(-math.pi/2, math.pi/2, resolution)

@@ -30,10 +30,12 @@ def get_scheduler(scheduler, optimizer, epochs):
 
 def get_criterion(criterion, threshold=None):
     c = None
+    if criterion == 'l1smooth':
+        c = torch.nn.SmoothL1Loss()
     if criterion == 'l1':
         c = torch.nn.L1Loss()
     elif criterion == 'l2':
-        c = torch.nn.L1Loss()
+        c = torch.nn.MSELoss()
     elif criterion == 'huber':
         c = torch.nn.HuberLoss(delta=threshold)
     elif criterion == 'l1sat':

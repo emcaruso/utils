@@ -30,15 +30,32 @@ class Direction():
         self.units = units
         self.device = input.device
 
+    def __add__(self, other):
+        if len(self.azel.shape)==2 and len(other.azel.shape)==2:
+            azel = torch.cat( (self.azel , other.azel), dim=0 )
+            return Direction( input=azel, units=self.units )
+        else:
+            assert(False)
+
+
+    def normalize(self):
+        # azimuth manifold
+        n = (self.azel[...,0]/(math.pi*2)).type(torch.int32)
+        self.azel[...,0] = self.azel[...,0] - n*math.pi*2
+        self.azel[...,1] = torch.clamp( self.azel[...,1], min=-math.pi/2+0.00001, max=math.pi/2-0.00001)
+
     def add_and_clamp(self, azimuth_inc, elevation_inc):
 
         # azimuth manifold
         self.azel[...,0] += azimuth_inc
-        n = int(self.azel[...,0]/(math.pi*2))
-        self.azel[...,0] -= n*math.pi*2
+        self.azel[...,1] += elevation_inc
+        self.normalize()
 
-        #elevaton, clamp between -pi/2 and pi/2
-        self.azel[...,1] = torch.clamp( self.azel[...,1]+elevation_inc, min=-math.pi/2+0.00001, max=math.pi/2-0.00001)
+        #n = int(self.azel[...,0]/(math.pi*2))
+        #self.azel[...,0] -= n*math.pi*2
+
+        ##elevaton, clamp between -pi/2 and pi/2
+        #self.azel[...,1] = torch.clamp( self.azel[...,1]+elevation_inc, min=-math.pi/2+0.00001, max=math.pi/2-0.00001)
 
     # direction from center to point on the sphere described by azimuth and elevation
     def vec3D(self):
@@ -68,7 +85,7 @@ class Direction():
         z = input[...,2]
         # xy_norm = torch.sqrt((torch.pow(x,2) + torch.pow(y,2)))
         xy_norm = torch.norm( torch.cat( (x.unsqueeze(-1), y.unsqueeze(-1) ), dim=-1), dim=-1 )
-        return torch.stack( (torch.atan2(y, x+1e-3), torch.atan2(z, xy_norm+1e-3)), dim=-1)
+        return torch.stack( (torch.atan2(y+1e-4, x+1e-4), torch.atan2(z+1e-4, xy_norm+1e-4)), dim=-1)
 
     # direction to pose on a sphere
     def to_pose_on_sphere(self, distance = 8):

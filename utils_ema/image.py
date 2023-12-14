@@ -32,6 +32,11 @@ class Image():
 
         self.shape = self.img.shape
 
+    def to(self, device):
+        self.device=device
+        self.img = self.img.to(device)
+        return self
+
     def swapped(self):
         return torch.swapaxes(self.img,0,1)
 

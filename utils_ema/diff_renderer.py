@@ -18,11 +18,11 @@ class Renderer:
     """
 
     glctx = dr.RasterizeGLContext()
-    near = 1
-    far = 1000
+    near = 0.001
+    far = 1e20
 
     @classmethod
-    def set_near_far(cls, cams, samples, epsilon=0.1):
+    def set_near_far(cls, cams, samples, epsilon=0.00001):
         """ Automatically adjust the near and far plane distance
         """
 
@@ -145,6 +145,7 @@ class Renderer:
         l = obj.pose.location().to(device)
         R = obj.pose.rotation().to(device)
         v_mesh = obj.mesh.vertices.to(device)
+        uv = obj.mesh.uv.to(device)
 
         # v = obj.mesh.vertices.to(device)
         # n = obj.mesh.vertex_normals.to(device)
@@ -188,6 +189,12 @@ class Renderer:
         if "depth" in channels:
             gbuffer["depth"] = camera.project(gbuffer["position"], depth_as_distance=True)[..., 2:3]
 
+        if "uv" in channels:
+            uv, _ = gbuffer["uv"] = dr.interpolate(uv[None, ...], rast, idx)
+            gbuffer["uv"] =  dr.antialias(uv, rast, pos, idx)[0] if with_antialiasing else uv[0]
+
+
+
         # del pos, idx
         # torch.cuda.empty_cache()
         if get_rast_idx:
@@ -197,12 +204,12 @@ class Renderer:
 
 
     @classmethod
-    def get_buffers_pixels_dirs(cls, camera, obj, shading_percentage=1, channels=['mask', 'position', 'normal'], no_contour=True):
+    def get_buffers_pixels_dirs(cls, camera, obj, shading_percentage=1, channels=['mask', 'position', 'normal'], no_contour=True, with_antialiasing=False):
 
         if 'mask' not in channels:
             channels += 'mask'
 
-        gbuffers = Renderer.diffrast(camera, obj, channels=channels, with_antialiasing=False)
+        gbuffers = Renderer.diffrast(camera, obj, channels=channels, with_antialiasing=with_antialiasing)
 
         if no_contour:
             gbuffers["mask"][0,:] = 0
