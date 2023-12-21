@@ -31,7 +31,7 @@ def get_scheduler(scheduler, optimizer, epochs):
 def get_criterion(criterion, threshold=None):
     c = None
     if criterion == 'l1smooth':
-        c = torch.nn.SmoothL1Loss()
+        c = torch.nn.SmoothL1Loss(beta=threshold)
     if criterion == 'l1':
         c = torch.nn.L1Loss()
     elif criterion == 'l2':
@@ -42,6 +42,8 @@ def get_criterion(criterion, threshold=None):
         c = SaturatedL1(threshold=threshold)
     elif criterion == 'l2sat':
         c = SaturatedL2(threshold=threshold)
+    elif criterion == 'custom':
+        c = CustomSharp(threshold=threshold)
     return c
 
 
@@ -198,3 +200,22 @@ class SaturatedL2(torch.nn.Module):
         # absolute_errors = torch.norm(predictions - targets, p=2, dim=-1)
         absoulte_errors = torch.clamp(absolute_errors, max=self.threshold)
         return absoulte_errors.mean()
+
+class CustomSharp(torch.nn.Module):
+    def __init__(self, threshold):
+        super(CustomSharp, self).__init__()
+        # self.crit = SaturatedL2(threshold)
+        self.crit = torch.nn.L1Loss()
+
+    def forward(self, predictions, targets):
+        # W = (targets.mean(-1)>0.7).unsqueeze(-1)
+        return self.crit(predictions, targets)
+
+
+
+
+
+
+
+
+

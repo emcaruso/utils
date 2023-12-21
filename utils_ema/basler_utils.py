@@ -60,12 +60,19 @@ class frame_extractor:
     def grab_multiple_cams(self, timeout:int = 5000):
         assert(self.cam_array.IsGrabbing())
 
-        images = [None] * self.num_cameras
+        images = []
         img_nr = -1
+        # print("AO")
         while True:
             # Wait for an image and then retrieve it. A timeout of 5000 ms is used.
             grabResult = self.cam_array.RetrieveResult(timeout, pylon.TimeoutHandling_ThrowException)
-            # img_nr = grabResult.ImageNumber
+            i = grabResult.ImageNumber
+            if  i!=img_nr:
+                img_nr = i
+                images.clear()
+                images = [None] * self.num_cameras
+
+            # print(i)
 
             # Image grabbed successfully?
             if grabResult.GrabSucceeded():

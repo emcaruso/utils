@@ -85,7 +85,7 @@ class Direction():
         z = input[...,2]
         # xy_norm = torch.sqrt((torch.pow(x,2) + torch.pow(y,2)))
         xy_norm = torch.norm( torch.cat( (x.unsqueeze(-1), y.unsqueeze(-1) ), dim=-1), dim=-1 )
-        return torch.stack( (torch.atan2(y+1e-4, x+1e-4), torch.atan2(z+1e-4, xy_norm+1e-4)), dim=-1)
+        return torch.stack( (torch.atan2(y, x+1e-6), torch.atan2(z, xy_norm+1e-6)), dim=-1)
 
     # direction to pose on a sphere
     def to_pose_on_sphere(self, distance = 8):

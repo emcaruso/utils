@@ -188,8 +188,8 @@ class SphericalGaussians():
         lobe_axis_norm = torch.nn.functional.normalize(self.lobe_axis.vec3D(), dim=-1)
 
         dot = torch.clamp(torch.sum(x_norm * lobe_axis_norm, dim=-1), min=0).unsqueeze(-1)
-        exp = torch.exp(self.lobe_sharp*(dot-1))
-        res = self.lobe_ampl*exp
+        exp = torch.exp(torch.abs(self.lobe_sharp)*(dot-1))
+        res = torch.abs(self.lobe_ampl)*exp
 
         return res
 

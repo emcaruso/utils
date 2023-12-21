@@ -53,14 +53,15 @@ class Image():
             return b1 and b2
         return False
 
-    def get_gray_cmap( self , cmap='viridis'):
+    def get_gray_cmap( self , cmap='nipy_spectral'):
         dtype = self.img.dtype
         c = plt.get_cmap(cmap)
-        colormap_tensor = c(self.img.cpu().view(-1).numpy())
-        s = self.img.squeeze().shape
+        gray = self.gray()
+        colormap_tensor = c(gray.cpu().view(-1).numpy())
+        s = gray.squeeze().shape
         rgb_tensor = torch.flip(torch.from_numpy(colormap_tensor[:, :3]), dims=[-1]).view( tuple(list(s)+[3]) ).to(self.device)
         rgb_tensor = rgb_tensor.type(dtype)
-        return rgb_tensor
+        return Image(rgb_tensor)
 
 
     def shape(self):
@@ -155,3 +156,33 @@ class Image():
 
         return interpolated_rgb
 
+    def sample_pixels(self, num_samples):
+        """
+        Samples pixels from a one-channel image (torch tensor) based on the pixel values as probabilities.
+
+        Args:
+        image (torch.Tensor): A one-channel image tensor.
+        num_samples (int): Number of pixels to sample.
+
+        Returns:
+        torch.Tensor: Indices of sampled pixels.
+        """
+        # Flatten the image and normalize the pixel values to get probabilities
+        if len(self.img.shape)>=2:
+            new_img = self.img.mean(dim=-1)
+        else:
+            new_img = self.img
+            
+
+
+        flat_image = new_img.flatten()
+        probabilities = flat_image / flat_image.sum()
+
+        # Sample pixel indices based on the computed probabilities
+        sampled_indices = torch.multinomial(probabilities, num_samples, replacement=True)
+
+        # Convert flat indices to 2D indices
+        rows = sampled_indices // new_img.shape[1]
+        cols = sampled_indices % new_img.shape[1]
+
+        return torch.stack((rows, cols), dim=1)
