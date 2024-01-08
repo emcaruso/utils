@@ -1,4 +1,5 @@
 import json
+import pickle
 import argparse
 import cv2
 import torch
@@ -45,6 +46,17 @@ def load_parsed_args_as_dict( path):
     with open(path, 'r') as f:
         dict = json.load(f)
     return dict
+
+##### PICKLE
+
+def save_pickle(obj, filepath):
+    with open(filepath, 'wb') as file:
+        pickle.dump(obj, file)
+
+def load_pickle(filepath):
+    with open(filepath, 'rb') as file:
+        loaded_object = pickle.load(filepath)
+        return loaded_object
 
 ##### NPZ ######
 

@@ -167,14 +167,15 @@ class Image():
         Returns:
         torch.Tensor: Indices of sampled pixels.
         """
-        # Flatten the image and normalize the pixel values to get probabilities
+
         if len(self.img.shape)>=2:
             new_img = self.img.mean(dim=-1)
         else:
             new_img = self.img
+
+        new_img = torch.pow(new_img, 2)
             
-
-
+        # Flatten the image and normalize the pixel values to get probabilities
         flat_image = new_img.flatten()
         probabilities = flat_image / flat_image.sum()
 

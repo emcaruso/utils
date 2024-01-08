@@ -97,16 +97,17 @@ class PBR_Shader():
         pixels_list = []
         rgbs = []
 
-        for i in range(0,len(scene.materials_segm)):
+        # for i in range(0,len(scene.materials_segm)):
         # for i in range(0,1):
         # for i in range(1,2):
         # for i in range(2,3):
+        for i in range(1,3):
 
             light = scene.lights_segm[i]
             material = scene.materials_segm[i]
 
             # light.lobe_ampl = torch.clamp(light.lobe_ampl.clone(), min=0)
-            # light.lobe_sharp = torch.clamp(light.lobe_sharp.clone(), min=0)
+
             # material.roughness = torch.clamp(material.roughness.clone(), min=0)
             # material.diffuse_albedo = torch.clamp(material.diffuse_albedo.clone(), min=0)
             # material.specular_albedo = torch.clamp(material.specular_albedo.clone(), min=0)

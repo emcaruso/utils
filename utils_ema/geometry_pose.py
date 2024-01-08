@@ -15,10 +15,11 @@ except:
 
 class Pose():
 
-    def __init__(self, euler:eul = eul(torch.zeros([3], dtype=torch.float32)), position = torch.zeros([3], dtype=torch.float32), T=None , units='meters', device='cpu'):
+    def __init__(self, euler:eul = eul(torch.zeros([3], dtype=torch.float32)), position = torch.zeros([3], dtype=torch.float32), T=None , scale=torch.ones([1], dtype=torch.float32), units='meters', device='cpu'):
         assert(isinstance(euler,eul))
         assert(torch.is_tensor(position))
 
+        self.scale = scale
         if T is not None:
             self.euler = euler
             self.euler = self.euler.rot2eul( R= T[...,:3,:3] )
@@ -60,7 +61,7 @@ class Pose():
     def uniform_scale(self, s:float, units:str="scaled"):
         self.set_location(self.location()*s)
         self.units = units
-    def scale(self, s:torch.FloatTensor): self.set_location(self.location()*s)
+    # def scale(self, s:torch.FloatTensor): self.set_location(self.location()*s)
 
     def transform(self, T_tr):
         R = T_tr[...,:3,:3]

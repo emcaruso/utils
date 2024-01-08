@@ -27,10 +27,18 @@ class Object():
         setattr(self,key,value)
 
     def get_vertices_from_pose(self):
+
         l = self.pose.location().to(self.device)
         R = self.pose.rotation().to(self.device)
-        v = (self.mesh.vertices@R.t()) + l
+        v_mesh = self.mesh.vertices.to(self.device)
+        v = (v_mesh@R.t()) + l
         return v
+
+        # l = self.pose.location().to(self.device)
+        # R = self.pose.rotation().to(self.device)
+        # s = self.pose.scale.to(self.device)
+        # v = ( ( (self.mesh.vertices * s)@R.t() ) + l) 
+        # return v
 
     def get_aabb(self, consider_pose=True):
 

@@ -142,9 +142,6 @@ class Renderer:
         r = camera.intr.resolution
         r = [r[1],r[0]]
         P = Renderer.to_gl_camera( gl_cam, r , n=cls.near, f=cls.far)
-        l = obj.pose.location().to(device)
-        R = obj.pose.rotation().to(device)
-        v_mesh = obj.mesh.vertices.to(device)
         uv = obj.mesh.uv.to(device)
 
         # v = obj.mesh.vertices.to(device)
@@ -160,7 +157,14 @@ class Renderer:
         # pos = Renderer.transform_pos(P, v)
         # idx = obj.mesh.indices.int().to(device)
 
-        v = (v_mesh@R.t()) + l
+        l = obj.pose.location().to(device)
+        R = obj.pose.rotation().to(device)
+        s = obj.pose.scale.to(device)
+        v_mesh = obj.mesh.vertices.to(device)
+        v = ( (s*v_mesh)@R.t()) + l
+
+        # v = obj.get_vertices_from_pose()
+
         mesh = obj.mesh.with_vertices( v )
         # v = mesh.vertices.to(device)
         n = mesh.vertex_normals.to(device)
