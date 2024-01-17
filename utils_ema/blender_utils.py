@@ -47,8 +47,8 @@ def launch_blender_script( blend_file, script_path):
 #     args = " ".join(arguments)
 #     os.system("blender "+ blend_file +" --background --python "+script_path+" -- "+args)
 
-def get_blend_file( blend_dir, blend_dataset ):
-    dir = blend_dir+"/"+blend_dataset
+def get_blend_file( blend_dir):
+    dir = blend_dir
     blend_files = [ os.path.abspath(dir+"/"+f) for f in list(os.listdir(dir)) if f[-6:]==".blend"]
     assert(len(blend_files)==1)
     return blend_files[0]
