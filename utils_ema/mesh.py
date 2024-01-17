@@ -5,7 +5,6 @@ import numpy as np
 def read_mesh(path, device='cpu'):
     mesh_ = trimesh.load_mesh(str(path), process=False)
 
-
     # print(len(mesh_.visual.uv))
     # print(len(mesh_.vertices))
     # print(len(mesh_.faces))

@@ -39,13 +39,14 @@ class SphericalGaussians():
             #     self.lobe_axis = Direction(input=azel, requires_grad=requires_grad)
 
             if gen_axis == 'uniform':
-                goldenRatio = (1 + 5**0.5)/2
-                i = torch.arange(self.n_sgs, dtype=torch.float32)
-                az = (2 * math.pi * i / goldenRatio) - math.pi
-                az = torch.remainder(az + math.pi, 2 * math.pi) - math.pi
-                el = torch.acos(1 - 2 * (i+0.5) / float(self.n_sgs)) - math.pi/2
-                azel = torch.stack( (az,el), dim=-1 ).to(device)
-                self.lobe_axis = Direction(input=azel, requires_grad=requires_grad)
+                self.lobe_axis = Direction.sample_directions( self.n_sgs, device=device, requires_grad=requires_grad )
+                # goldenRatio = (1 + 5**0.5)/2
+                # i = torch.arange(self.n_sgs, dtype=torch.float32)
+                # az = (2 * math.pi * i / goldenRatio) - math.pi
+                # az = torch.remainder(az + math.pi, 2 * math.pi) - math.pi
+                # el = torch.acos(1 - 2 * (i+0.5) / float(self.n_sgs)) - math.pi/2
+                # azel = torch.stack( (az,el), dim=-1 ).to(device)
+                # self.lobe_axis = Direction(input=azel, requires_grad=requires_grad)
 
                 # i = arange(0, n)
                 # theta = 2 *pi * i / goldenRatio
@@ -99,6 +100,7 @@ class SphericalGaussians():
         ratio = lambda1 / lambda2
 
         dot = torch.sum(lobe1 * lobe2, dim=-1, keepdim=True)
+
         tmp = torch.sqrt(ratio * ratio + 1. + 2. * ratio * dot)
         tmp = torch.min(tmp, ratio + 1.)
 
@@ -109,11 +111,37 @@ class SphericalGaussians():
 
         final_lobes = Direction(lambda1_over_lambda3 * lobe1 + lambda2_over_lambda3 * lobe2)
         final_lambdas = lambda3
+        final_mus = mu1 * mu2
         final_mus = mu1 * mu2 * torch.exp(diff)
 
         sgs_dict = { "lobe_axis":final_lobes, "lobe_sharp":final_lambdas, "lobe_ampl":final_mus }
         return SphericalGaussians(sgs_dict=sgs_dict, device=self.device)
 
+    # def __mul__(self, other):
+    #     lambda1 = self.lobe_sharp
+    #     lambda2 = other.lobe_sharp
+    #     lobe1 = self.lobe_axis.vec3D()
+    #     lobe2 = other.lobe_axis.vec3D()
+    #     mu1 = self.lobe_ampl
+    #     mu2 = other.lobe_ampl
+
+    #     ratio = lambda1 / lambda2
+
+    #     dot = torch.sum(lobe1 * lobe2, dim=-1, keepdim=True)
+    #     tmp = torch.sqrt(ratio * ratio + 1. + 2. * ratio * dot)
+    #     tmp = torch.min(tmp, ratio + 1.)
+
+    #     lambda3 = lambda2 * tmp
+    #     lambda1_over_lambda3 = ratio / tmp
+    #     lambda2_over_lambda3 = 1. / tmp
+    #     diff = lambda2 * (tmp - ratio - 1.)
+
+    #     final_lobes = Direction(lambda1_over_lambda3 * lobe1 + lambda2_over_lambda3 * lobe2)
+    #     final_lambdas = lambda3
+    #     final_mus = mu1 * mu2 * torch.exp(diff)
+
+    #     sgs_dict = { "lobe_axis":final_lobes, "lobe_sharp":final_lambdas, "lobe_ampl":final_mus }
+    #     return SphericalGaussians(sgs_dict=sgs_dict, device=self.device)
 
     # def __mul__(self, other):
 
@@ -188,8 +216,10 @@ class SphericalGaussians():
         lobe_axis_norm = torch.nn.functional.normalize(self.lobe_axis.vec3D(), dim=-1)
 
         dot = torch.clamp(torch.sum(x_norm * lobe_axis_norm, dim=-1), min=0).unsqueeze(-1)
-        exp = torch.exp(torch.abs(self.lobe_sharp)*(dot-1))
-        res = torch.abs(self.lobe_ampl)*exp
+        # exp = torch.exp(torch.abs(self.lobe_sharp)*(dot-1))
+        exp = torch.exp(torch.pow(self.lobe_sharp,2)*(dot-1))
+        # res = torch.abs(self.lobe_ampl)*exp
+        res = torch.pow(self.lobe_ampl, 2)*exp
 
         return res
 
@@ -200,7 +230,7 @@ class SphericalGaussians():
         return rgb
 
 
-    def get_envmap( self, name="unk", resolution=256, normalize=False ):
+    def get_envmap( self, name="unk", resolution=256, normalize=False, square=True ):
         # Generate the grid points
         az = -torch.linspace(-math.pi, math.pi, resolution*2)
         el = -torch.linspace(-math.pi/2, math.pi/2, resolution)

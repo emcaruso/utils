@@ -43,6 +43,7 @@ def stdout_redirected(to=os.devnull):
 def launch_blender_script( blend_file, script_path):
     os.system("blender "+ blend_file +" --background --python "+script_path)
 # def launch_blender_script( blend_file, script_path, arguments=[""] ):
+#     print(arguments)
 #     args = " ".join(arguments)
 #     os.system("blender "+ blend_file +" --background --python "+script_path+" -- "+args)
 

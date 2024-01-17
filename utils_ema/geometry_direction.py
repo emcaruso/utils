@@ -37,6 +37,11 @@ class Direction():
         else:
             assert(False)
 
+    def angular_distance(self, other_dir):
+        d1 = self.vec3D()
+        d2 = other_dir.vec3D()
+        dot = torch.sum( d1 * d2, dim=-1)
+        return torch.arccos(dot)
 
     def normalize(self):
         # azimuth manifold
@@ -103,6 +108,15 @@ class Direction():
         pose.move_location_local(torch.FloatTensor([0,0,-distance]))
         return pose
         
+    @staticmethod
+    def sample_directions( n, device='cpu', requires_grad=False ):
+        goldenRatio = (1 + 5**0.5)/2
+        i = torch.arange(n, dtype=torch.float32)
+        az = (2 * math.pi * i / goldenRatio) - math.pi
+        az = torch.remainder(az + math.pi, 2 * math.pi) - math.pi
+        el = torch.acos(1 - 2 * (i+0.5) / float(n)) - math.pi/2
+        azel = torch.stack( (az,el), dim=-1 ).to(device)
+        return Direction(input=azel, requires_grad=requires_grad)
 
 
 

@@ -106,28 +106,28 @@ class Renderer:
 
 
 
-    @classmethod
-    def render_neural(cls, camera, obj, neural_shader):
-        gbuffers = cls.diffrast(camera, obj, channels=['mask', 'position', 'normal'], with_antialiasing=True) 
-        mask = (gbuffers["mask"] > 0).squeeze()
-        # indexes = torch.nonzero(mask).squeeze()
+    # @classmethod
+    # def render_neural(cls, camera, obj, neural_shader):
+    #     gbuffers = cls.diffrast(camera, obj, channels=['mask', 'position', 'normal'], with_antialiasing=True) 
+    #     mask = (gbuffers["mask"] > 0).squeeze()
+    #     # indexes = torch.nonzero(mask).squeeze()
 
-        pixs = camera.sample_rand_pixs_in_mask( mask, percentage=1)
-        dirs = camera.pix2dir( pixs )
+    #     pixs = camera.sample_rand_pixs_in_mask( mask, percentage=1)
+    #     dirs = camera.pix2dir( pixs )
 
-        if pixs is None: return None
+    #     if pixs is None: return None
 
-        # images
-        position = gbuffers["position"]
-        normal = gbuffers["normal"]
-        img = torch.zeros( normal.shape , device=position.device)
+    #     # images
+    #     position = gbuffers["position"]
+    #     normal = gbuffers["normal"]
+    #     img = torch.zeros( normal.shape , device=position.device)
 
-        position = position[pixs[:, 1], pixs[:, 0], :]
-        normal = normal[pixs[:, 1], pixs[:, 0], :]
-        shaded = neural_shader(position, normal, dirs)
+    #     position = position[pixs[:, 1], pixs[:, 0], :]
+    #     normal = normal[pixs[:, 1], pixs[:, 0], :]
+    #     shaded = neural_shader(position, normal, dirs)
 
-        img[pixs[:,1],pixs[:,0],:]=shaded
-        return Image(img=img)
+    #     img[pixs[:,1],pixs[:,0],:]=shaded
+    #     return Image(img=img)
 
 
     @classmethod

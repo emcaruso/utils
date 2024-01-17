@@ -67,6 +67,7 @@ class PBR_Shader():
         gbuffers, pixs_all, _ = Renderer.get_buffers_pixels_dirs(cam, obj, shading_percentage=shading_percentage,channels=['mask','normal','uv'])
         # gbuffers, pixs_all, _ = Renderer.get_buffers_pixels_dirs(cam, obj, shading_percentage=1,channels=['mask','normal','uv'])
 
+        
         if pixs_all is None: return None, None
 
         device = pixs_all.device
@@ -104,6 +105,7 @@ class PBR_Shader():
         for i in range(1,3):
 
             light = scene.lights_segm[i]
+
             material = scene.materials_segm[i]
 
             # light.lobe_ampl = torch.clamp(light.lobe_ampl.clone(), min=0)
@@ -111,8 +113,8 @@ class PBR_Shader():
             # material.roughness = torch.clamp(material.roughness.clone(), min=0)
             # material.diffuse_albedo = torch.clamp(material.diffuse_albedo.clone(), min=0)
             # material.specular_albedo = torch.clamp(material.specular_albedo.clone(), min=0)
-            # light.lobe_ampl = torch.abs(light.lobe_ampl.clone())
-            # light.lobe_sharp = torch.abs(light.lobe_sharp.clone())
+            # light.lobe_ampl = torch.pow(light.lobe_ampl.clone(), 2)
+            # light.lobe_sharp = torch.pow(light.lobe_sharp.clone(), 2)
             # material.roughness = torch.abs(material.roughness.clone())
             # material.diffuse_albedo = torch.abs(material.diffuse_albedo.clone())
             # material.specular_albedo = torch.abs(material.specular_albedo.clone())
@@ -131,6 +133,10 @@ class PBR_Shader():
             normal = normal_all[pixs[:, 1], pixs[:, 0], :].to(device)
             view_dirs = cam.pix2dir( pixs ).to(device)
 
+            # scene.plot_cams(1)
+            # plotter.plot_ray(cam.pose.location().detach().cpu(), view_dirs.detach().cpu(), length=0.5, color='blue')
+            # # plotter.plot_ray(position_val.detach().cpu(), normal_val.detach().cpu(), length=0.1, color='cyan')
+            # plotter.wandb_log()
 
             r = material.roughness
             k = ((r+1)**2)*0.125
@@ -142,8 +148,13 @@ class PBR_Shader():
             sa = material.specular_albedo
 
 
-            # shape [ n_pixs, n_lights, R3 ]
-            L_i = light
+            l_sh = torch.pow(light.lobe_sharp, 2)
+            # unsqueeze l_am for shadow map
+            l_am = torch.pow(light.lobe_ampl, 2).unsqueeze(0)
+            sgs_dict = { "lobe_axis":light.lobe_axis, "lobe_sharp": l_sh, "lobe_ampl": l_am }
+            # sgs_dict = { "lobe_axis":light.lobe_axis, "lobe_sharp":light.lobe_sharp, "lobe_ampl":light.lobe_ampl }
+            L_i = SphericalGaussians( sgs_dict = sgs_dict )
+            # L_i = light
             w_i = torch.nn.functional.normalize(L_i.lobe_axis.vec3D(), dim=-1).unsqueeze(0) # incident light
             w_o = - torch.nn.functional.normalize(view_dirs, dim=-1).unsqueeze(1)  # view direction
             n = torch.nn.functional.normalize(normal, dim=-1).unsqueeze(1)
@@ -207,7 +218,6 @@ class PBR_Shader():
             # rgb_spec = torch.sum( (out).eval(w_i)*mask , dim=1)
             # rgb_spec = torch.sum( (L_i*Brdf_spec).eval(w_i)*mask , dim=1)  # no-lamb
             # rgb_spec = torch.sum( spec_gauss.eval(h) , dim=1)
-
             rgb_spec = (L_i*Brdf_spec*cos_gauss).hemisphere_int(n) - cos_offs*(L_i*Brdf_spec).hemisphere_int(n)
             # rgb_spec = (L_i*Brdf_spec*cos_gauss).hemisphere_int(n) - cos_offs*(L_i*Brdf_spec).hemisphere_int(n)
             # rgb_spec = (L_i*cos_gauss).hemisphere_int(n) - cos_offs*(L_i).hemisphere_int(n)

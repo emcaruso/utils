@@ -1,4 +1,5 @@
 import plotly.graph_objects as go
+import wandb
 
 try:
     from .geometry_pose import *
@@ -108,7 +109,18 @@ class plotter():
 
     @classmethod
     def save(cls, path):
+        fig = cls.init_figure(max_corner=[-cls.max_corner,cls.max_corner], sliders=True)
         fig.write_html(path)
+
+    @classmethod
+    def wandb_log(cls, name="plotly" ):
+        fig = cls.init_figure(max_corner=[-cls.max_corner,cls.max_corner], sliders=True)
+        path_to_plotly_html = "./plotly_figure.html"
+        table = wandb.Table(columns=["plotly_figure"])
+        fig.write_html(path_to_plotly_html, auto_play=False)
+        table.add_data(wandb.Html(path_to_plotly_html))
+        wandb.log({name: table})
+
 
     @classmethod
     def show(cls):
@@ -221,6 +233,8 @@ class plotter():
 
     @classmethod
     def plot_ray(cls,origin, dir, length=1, color='cyan', label='Rays', frame=None):
+        if len(origin.shape)==len(dir.shape)-1:
+            origin = origin.unsqueeze(0).repeat(dir.shape[0],1)
         cls.plot_line(origin, origin+(dir*length), color=color, frame=frame)
         cls.plot_points(origin, color='red', frame=frame)
 

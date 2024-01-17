@@ -186,4 +186,4 @@ class Image():
         rows = sampled_indices // new_img.shape[1]
         cols = sampled_indices % new_img.shape[1]
 
-        return torch.stack((rows, cols), dim=1)
+        return torch.stack((cols, rows), dim=1)

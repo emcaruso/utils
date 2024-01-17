@@ -26,6 +26,7 @@ class Object():
         assert(hasattr(self,key))
         setattr(self,key,value)
 
+
     def get_vertices_from_pose(self):
 
         l = self.pose.location().to(self.device)
