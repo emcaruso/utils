@@ -148,9 +148,10 @@ class PBR_Shader():
             sa = material.specular_albedo
 
 
-            l_sh = torch.pow(light.lobe_sharp, 2)
-            # unsqueeze l_am for shadow map
-            l_am = torch.pow(light.lobe_ampl, 2).unsqueeze(0)
+            # l_sh = torch.pow(light.lobe_sharp, 2)
+            l_sh = torch.exp(light.lobe_sharp)
+            # l_am = torch.pow(light.lobe_ampl, 2).unsqueeze(0)
+            l_am = torch.exp(light.lobe_ampl).unsqueeze(0)
             sgs_dict = { "lobe_axis":light.lobe_axis, "lobe_sharp": l_sh, "lobe_ampl": l_am }
             # sgs_dict = { "lobe_axis":light.lobe_axis, "lobe_sharp":light.lobe_sharp, "lobe_ampl":light.lobe_ampl }
             L_i = SphericalGaussians( sgs_dict = sgs_dict )

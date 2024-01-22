@@ -217,9 +217,11 @@ class SphericalGaussians():
 
         dot = torch.clamp(torch.sum(x_norm * lobe_axis_norm, dim=-1), min=0).unsqueeze(-1)
         # exp = torch.exp(torch.abs(self.lobe_sharp)*(dot-1))
-        exp = torch.exp(torch.pow(self.lobe_sharp,2)*(dot-1))
+        # exp = torch.exp(torch.pow(self.lobe_sharp,2)*(dot-1))
+        exp = torch.exp(torch.exp(self.lobe_sharp)*(dot-1))
         # res = torch.abs(self.lobe_ampl)*exp
-        res = torch.pow(self.lobe_ampl, 2)*exp
+        # res = torch.pow(self.lobe_ampl, 2)*exp
+        res = torch.exp(self.lobe_ampl)*exp
 
         return res
 

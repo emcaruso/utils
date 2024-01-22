@@ -6,6 +6,9 @@ try:
     from .image import *
 except:
     from image import *
+from utils_ema.general import get_monitor
+
+m = get_monitor()
 
 
 class frame_extractor:
@@ -99,7 +102,10 @@ class frame_extractor:
                     imgs_show = func[0](imgs_show, *func[1])
                 for cam_id,img_show in enumerate(imgs_show):
                     resized = cv2.resize(img_show.img.numpy(), (int(img_show.img.shape[1]/drop_rate), int(img_show.img.shape[0]/drop_rate)), interpolation= cv2.INTER_LINEAR)
-                    cv2.imshow("Cam_"+str(cam_id), resized)
+                    winname="Cam_"+str(cam_id).zfill(3)
+                    cv2.namedWindow(winname)        # Create a named window
+                    cv2.moveWindow(winname,  int(((cam_id%2)==1)*(m.width/2)),int((cam_id>1)*(m.height/2)) )
+                    cv2.imshow(winname, resized)
             key = cv2.waitKey(1)
             space_pressed = key == ord(' ')
             if not manual or space_pressed:

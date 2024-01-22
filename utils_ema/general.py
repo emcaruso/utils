@@ -5,6 +5,13 @@ import cv2
 import torch
 import numpy as np
 import time
+from screeninfo import get_monitors
+
+##### OTHER #####
+
+def get_monitor():
+    for m in get_monitors():
+        return m
 
 ##### PERFORMANCE ######
 
