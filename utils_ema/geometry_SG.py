@@ -232,7 +232,7 @@ class SphericalGaussians():
         return rgb
 
 
-    def get_envmap( self, name="unk", resolution=256, normalize=False, square=True ):
+    def get_envmap( self, name="unk", resolution=256, normalize=False, thresh=0.5, square=True ):
         # Generate the grid points
         az = -torch.linspace(-math.pi, math.pi, resolution*2)
         el = -torch.linspace(-math.pi/2, math.pi/2, resolution)
@@ -248,15 +248,18 @@ class SphericalGaussians():
 
         rgb = self.eval_and_integrate(x)
 
+
         if normalize:
             rgb -= torch.min(rgb)
             rgb /= torch.max(rgb)
+        else:
+            rgb = torch.clamp_max(rgb, max=thresh)/thresh
 
         img = Image(rgb)
         img.resize(resolution=[400,800])
         return img
 
-    def show_envmap( self, name="unk", resolution=256, normalize=True, wk=0 ):
+    def show_envmap( self, name="unk", resolution=256, normalize=False, wk=0 ):
 
         img = self.get_envmap( name=name, resolution=resolution, normalize=normalize )
         img.show(img_name=name, wk=wk)
