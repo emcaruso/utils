@@ -6,6 +6,7 @@ import torch
 import numpy as np
 import time
 from screeninfo import get_monitors
+import os
 
 ##### OTHER #####
 
@@ -31,6 +32,19 @@ def print_hash(string, offs=5):
     print("\n"+"#" * l)
     print("#"*offs+" "+ string +" "+"#"*offs)
     print("#" * l+"\n")
+
+def select_file_in_folder(dirpath):
+    file_names = os.listdir(dirpath)
+    string = ""
+    for s in [ str(i)+") "+name+"\n"  for i, name in enumerate(file_names)]:
+        string += s
+    o = input("select file by number, or type\n"+string)
+    if o.isnumeric():
+        chosen_file = file_names[int(o)]
+    else:
+        chosen_file = o
+    return chosen_file
+
 
 ##### PARSER ######
 

@@ -208,7 +208,8 @@ class Renderer:
 
 
     @classmethod
-    def get_buffers_pixels_dirs(cls, camera, obj, shading_percentage=1, channels=['mask', 'position', 'normal'], no_contour=True, with_antialiasing=False):
+    # def get_buffers_pixels_dirs(cls, camera, obj, shading_percentage=1, channels=['mask', 'position', 'normal'], no_contour=True, with_antialiasing=False):
+    def get_buffers_pixels_dirs(cls, camera, obj, n_pixs=None, channels=['mask', 'position', 'normal'], no_contour=True, with_antialiasing=False):
 
         if 'mask' not in channels:
             channels += 'mask'
@@ -224,7 +225,8 @@ class Renderer:
         # sample pixels in mask
         mask = (gbuffers["mask"] > 0).squeeze()
 
-        pixs = camera.sample_rand_pixs_in_mask( mask, percentage=shading_percentage)
+        # pixs = camera.sample_rand_pixs_in_mask( mask, percentage=shading_percentage)
+        pixs = camera.sample_rand_pixs_in_mask( mask, n_pixs=n_pixs)
         if pixs is None: return None, None, None
         dirs = camera.pix2dir( pixs ).to(mask.device)
 

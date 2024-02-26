@@ -273,10 +273,22 @@ class Camera_cv():
         sampl_image_idxs = pixels_idxs[perm][:n]
         return sampl_image_idxs
 
-    def sample_rand_pixs_in_mask( self, mask, percentage=1):
+    # def sample_rand_pixs_in_mask( self, mask, percentage=1):
+    #     self.assert_image_shape(mask)
+    #     m = mask.transpose(0,1)
+    #     grid = self.get_pixel_grid( device=mask.device)
+    #     pixels_idxs = grid[ m>0 ]
+    #     if not pixels_idxs.numel():
+    #         # return torch.empty((0, 2), dtype=torch.float32, device=self.device)
+    #         return None
+    #     pixels_idxs = torch.reshape(pixels_idxs, (-1,len(self.intr.resolution)))
+    #     perm = torch.randperm(pixels_idxs.shape[0])
+    #     sampl_image_idxs = pixels_idxs[perm][:(int(len(perm)*percentage))]
+    #     return sampl_image_idxs
+
+    def sample_rand_pixs_in_mask( self, mask, n_pixs=None):
         self.assert_image_shape(mask)
         m = mask.transpose(0,1)
-
         grid = self.get_pixel_grid( device=mask.device)
         pixels_idxs = grid[ m>0 ]
         if not pixels_idxs.numel():
@@ -284,7 +296,11 @@ class Camera_cv():
             return None
         pixels_idxs = torch.reshape(pixels_idxs, (-1,len(self.intr.resolution)))
         perm = torch.randperm(pixels_idxs.shape[0])
-        sampl_image_idxs = pixels_idxs[perm][:(int(len(perm)*percentage))]
+        if n_pixs is None:
+            n_pixs = len(perm)
+        n_pixs = min(n_pixs, len(perm))
+        sampl_image_idxs = pixels_idxs[perm][:n_pixs]
+        # sampl_image_idxs = pixels_idxs[perm][:(int(len(perm)*percentage))]
         return sampl_image_idxs
 
     def get_all_rays(self):
