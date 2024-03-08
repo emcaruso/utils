@@ -63,7 +63,6 @@ class Image():
         rgb_tensor = rgb_tensor.type(dtype)
         return Image(rgb_tensor)
 
-
     def shape(self):
         return self.img.shape
 
@@ -132,8 +131,6 @@ class Image():
         # cv2.imshow("",image_curr.numpy())
         # cv2.waitKey(0)
         return image_curr
-
-    import torch.nn.functional as F
 
     def eval_bilinear(self, pixels, top_left):
 

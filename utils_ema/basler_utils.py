@@ -15,7 +15,7 @@ class frame_extractor:
     def __init__(self):
         self.converter = pylon.ImageFormatConverter()
         self.converter.OutputPixelFormat = pylon.PixelType_BGR8packed
-        self.converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAligned
+        # self.converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAlignedsignal_period
         self.load_devices()
 
     def load_devices(self):
@@ -90,6 +90,17 @@ class frame_extractor:
                 else:
                     break
         return images
+
+    def show_cams(self, wk=0):
+        images = self.grab_multiple_cams()
+        for cam_id, img in enumerate(images):
+            img = img.numpy()
+            resized = cv2.resize(img, (int(m.width/2), int(m.height/2)), interpolation= cv2.INTER_LINEAR)
+            winname="Cam_"+str(cam_id).zfill(3)
+            cv2.namedWindow(winname)        # Create a named window
+            cv2.moveWindow(winname,  int(((cam_id%2)==1)*(m.width/2)),int((cam_id>1)*(m.height/2)) )
+            cv2.imshow(winname, resized)
+        cv2.waitKey(wk)
 
     def collect_frames_multiple(self, manual:bool=True, max_frames:int = 50, show:bool=True, func_show=[], drop_rate:int=2):
         collection = []
