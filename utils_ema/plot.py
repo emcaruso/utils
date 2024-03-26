@@ -23,11 +23,12 @@ class plotter():
     def reset(cls):
         max_corner=0
         cls.frames.clear()
-        cls.points.clear()
-        cls.surfaces.clear()
-        cls.lines.clear()
-        cls.arrows.clear()
-        cls.meshes.clear()
+        cls.data_static.clear()
+        # cls.points.clear()
+        # cls.surfaces.clear()
+        # cls.lines.clear()
+        # cls.arrows.clear()
+        # cls.meshes.clear()
 
     @classmethod
     def init_figure(cls, max_corner=[-1,1], sliders=False, title='3D plot'):
@@ -239,19 +240,23 @@ class plotter():
         cls.plot_points(origin, color='red', frame=frame)
 
     @classmethod
-    def plot_frame(cls,pose, size=1, frame=None):
+    def plot_pose(cls,pose, size=1, frame=None):
         x_axis_end = torch.FloatTensor((size, 0, 0))
         y_axis_end = torch.FloatTensor((0, size, 0))
         z_axis_end = torch.FloatTensor((0, 0, size))
-        x_axis_end_rot = torch.matmul(pose.rotation(), x_axis_end)
-        y_axis_end_rot = torch.matmul(pose.rotation(), y_axis_end)
-        z_axis_end_rot = torch.matmul(pose.rotation(), z_axis_end)
-        a_x = pose.location()+x_axis_end_rot
-        a_y = pose.location()+y_axis_end_rot
-        a_z = pose.location()+z_axis_end_rot
-        cls.plot_line(pose.location(),a_x, color='red', frame=frame)
-        cls.plot_line(pose.location(),a_y, color='green', frame=frame)
-        cls.plot_line(pose.location(),a_z, color='blue', frame=frame)
+        x_axis_end_rot = torch.matmul(pose.rotation().type(torch.float64), x_axis_end.type(torch.float64))
+        y_axis_end_rot = torch.matmul(pose.rotation().type(torch.float64), y_axis_end.type(torch.float64))
+        z_axis_end_rot = torch.matmul(pose.rotation().type(torch.float64), z_axis_end.type(torch.float64))
+        a_x = pose.location().reshape([-1,3])+x_axis_end_rot
+        a_y = pose.location().reshape([-1,3])+y_axis_end_rot
+        a_z = pose.location().reshape([-1,3])+z_axis_end_rot
+        cls.plot_line(pose.location().reshape([-1,3]),a_x, color='red', frame=frame)
+        cls.plot_line(pose.location().reshape([-1,3]),a_y, color='green', frame=frame)
+        cls.plot_line(pose.location().reshape([-1,3]),a_z, color='blue', frame=frame)
+
+    @classmethod
+    def plot_frame(cls,pose, size=1, frame=None):
+        cls.plot_pose(pose, size=size, frame=frame)
 
 
     @classmethod

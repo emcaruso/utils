@@ -1,7 +1,14 @@
 import torch
+import numpy as np
+try:
+    from .geometry_quaternion import Quat
+except:
+    from geometry_quaternion import Quat
 
 class eul():
     def __init__(self, e=torch.zeros([3]), convention="YXZ", device='cpu'):
+        if isinstance(e, np.ndarray):
+            e = torch.from_numpy(e)
         self.e = e
         self.convention = convention
         self.device = device
@@ -20,19 +27,29 @@ class eul():
         new_eul = self.rot2eul(new_rot)
         self.e = new_eul.e
 
+    def eul2quat_YXZ(self):
+        c1 = torch.cos(self.e[..., 1] / 2.0)
+        c2 = torch.cos(self.e[..., 0] / 2.0)
+        c3 = torch.cos(self.e[..., 2] / 2.0)
+        s1 = torch.sin(self.e[..., 1] / 2.0)
+        s2 = torch.sin(self.e[..., 0] / 2.0)
+        s3 = torch.sin(self.e[..., 2] / 2.0)
+
+        # Quaternion components based on YXZ rotation sequence
+        w = c1 * c2 * c3 - s1 * s2 * s3
+        x = s1 * s2 * c3 + c1 * c2 * s3
+        y = s1 * c2 * c3 + c1 * s2 * s3
+        z = c1 * s2 * c3 - s1 * c2 * s3
+
+        return Quat(torch.tensor([w, x, y, z]))
+
+    def eul2quat(self):
+        if self.convention == "YXZ":
+            return self.eul2quat_YXZ()
+
+
     def rotate_by_euler(self, e ):
         self.rotate_by_R(e.eul2rot())
-
-    def eul2rot(self):
-        # match self.convention:
-        #     case "YXZ":
-        #         return self.eul2rot_YXZ()
-        #     case _:
-        #         raise ValueError("Wrong euler convention")
-        if self.convention == "YXZ":
-            return self.eul2rot_YXZ()
-        elif self.convention == "YX":
-            return self.eul2rot_YX()
 
     def get_cs(self):
         c = torch.cos(self.e)
@@ -60,7 +77,7 @@ class eul():
         r2 = torch.cat( (r21.unsqueeze(-1), r22.unsqueeze(-1), r23.unsqueeze(-1)), dim =-1)
         r3 = torch.cat( (r31.unsqueeze(-1), r32.unsqueeze(-1), r33.unsqueeze(-1)), dim =-1)
         rot = torch.cat( (r1.unsqueeze(-1), r2.unsqueeze(-1), r3.unsqueeze(-1)), dim =-1)
-        rot = rot.transpose(-2, -1) # TOCHECKKKKKKKKK
+        rot = rot.transpose(-2, -1)
         rot = rot.to(self.e.device)
         return rot
         
@@ -87,6 +104,17 @@ class eul():
         if self.convention == "YXZ":
             return eul.rot2eul_YXZ(R)
 
+    def eul2rot(self):
+        # match self.convention:
+        #     case "YXZ":
+        #         return self.eul2rot_YXZ()
+        #     case _:
+        #         raise ValueError("Wrong euler convention")
+        if self.convention == "YXZ":
+            return self.eul2rot_YXZ()
+        elif self.convention == "YX":
+            return self.eul2rot_YX()
+
 
     @staticmethod
     def rot2eul_YXZ(R= torch.eye(3) ):
@@ -96,4 +124,10 @@ class eul():
         e_flat = torch.cat( ( e1.unsqueeze(-1),e2.unsqueeze(-1),e3.unsqueeze(-1) ) )
         euler = eul(e_flat)
         return euler
+
+    def dist(self, other):
+        q1 = self.eul2quat()
+        q2 = other.eul2quat()
+        dist = q1.dist(q2)
+        return dist
 

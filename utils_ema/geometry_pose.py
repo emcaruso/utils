@@ -5,12 +5,15 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import math
 import sys, os
+import copy as cp
+from itertools import permutations
+
 
 try:
-    from .geometry_euler import *
+    from .geometry_euler import eul
     from .plot import *
 except:
-    from geometry_euler import *
+    from geometry_euler import eul
     from plot import *
 
 class Pose():
@@ -30,6 +33,42 @@ class Pose():
 
         self.units = units
         self.device = device
+
+    @staticmethod
+    def cvvecs2pose(rvec, tvec):
+        rot, _ = cv2.Rodrigues(rvec)
+
+        # rot = rot.transpose()
+
+        # axis_permutations = list(permutations([0, 1, 2]))
+        # for perm in axis_permutations:
+        #     prot = rot[np.ix_(perm, perm)]
+        #     print(perm)
+        #     # rot = rot[[2, 0, 1], :]
+        #     # rot = rot.transpose()
+        #     euler = eul(torch.zeros([3], dtype=torch.float32))
+        #     euler = euler.rot2eul( torch.from_numpy(prot) )
+        #     # euler.e = euler.e[[1,0,2]]
+        #     position = torch.from_numpy(tvec).squeeze(-1)
+        #     # pose = Pose(euler = euler, position = position.unsqueeze(0))
+        #     pose = Pose(euler = euler, position = position)
+        #     plotter.plot_pose(pose)
+        #     plotter.show()
+        #     plotter.reset()
+        # #     break
+
+        euler = eul(torch.zeros([3], dtype=torch.float32))
+        euler = euler.rot2eul( torch.from_numpy(rot) )
+        # euler.e = euler.e[[1,0,2]]
+        position = torch.from_numpy(tvec).squeeze(-1)
+        # pose = Pose(euler = euler, position = position.unsqueeze(0))
+        pose = Pose(euler = euler, position = position)
+        return pose
+
+
+    @staticmethod
+    def pose2cvecs():
+        pass
 
     def location(self):
         return self.position
@@ -110,11 +149,30 @@ class Pose():
         new_shape = list(R_inv.shape)
         new_shape[-1]=4
         new_shape[-2]=4
-        T_inv = torch.zeros( *new_shape , dtype= self.T.dtype)
+        T_inv = torch.zeros( *new_shape , dtype= self.get_T().dtype)
         T_inv[...,:3,:3] = R_inv
         T_inv[...,:3,-1] = t_inv
         T_inv[...,3,3] = 1
         return T_inv
+
+    def clone(self):
+
+        euler = cp.deepcopy(self.euler) 
+        position = cp.deepcopy(self.position) 
+        scale = cp.deepcopy(self.scale) 
+
+        pose = Pose(euler=euler, position=position, scale=scale, units=self.units, device=self.device)
+        return pose
+
+
+        # if same_pose: new_pose = self.pose
+        # else: new_pose = cp.deepcopy(self.pose) 
+
+        # if image_paths is None: image_paths = self.image_paths
+        # if name is None: name = self.name+"_copy"
+
+        # new_cam = Camera_cv(new_intr, new_pose, image_paths, self.frame, name, device = self.device, dtype=self.typ)
+        # return new_cam
 
     # def to(self, device):
     #     self.T = self.T.to(device)
@@ -142,55 +200,49 @@ class Pose():
         b2 = torch.equal(self.euler.e,other.euler.e)
         return (b1 and b2)
 
-# clpositionss Pose():
+    def __mul__(self, other):
 
-#     def __init__(self, T=torch.eye(4, dtype=torch.float32), units='meters', device='cpu'):
-#         assert(T.shape[-2:]==(4,4))
-#         self.T = T
-#         self.units = units
-#         self.device = device
+        T_self = self.get_T()
+        # R_self = self.rotation()
+        # t_self = self.location()
+        # s_self = self.scale
+        T_other = other.get_T()
+        # R_other = other.rotation()
+        # t_other = other.location()
+        # s_other = other.scale
 
-#     def location(self): return self.T[...,:3,-1]
-#     def rotation(self): return self.T[...,:3,:3]
-#     def set_pose(self, T): self.T = T
-#     def set_location(self, new_loc): self.T[...,:3,-1] = new_loc
-#     def set_rotation(self, new_rot): self.T[...,:3,:3] = new_rot
-#     def set_euler(self, e): self.set_rotation(e.eul2rot())
-#     # def rotate(self, rot): self.set_rotation(torch.matmul(rot, self.rotation()))
-#     def rotate(self, rot): self.set_rotation(torch.matmul(self.rotation(), rot))
-#     def rotate_euler(self, e): self.rotate(e.eul2rot())
-#     def move_location(self, v): self.set_location(self.location()+v)
-#     def move_location_local(self, v): self.set_location( self.location() + (self.rotation() @ v) )
-#     def uniform_scale(self, s:float, units:str="scaled"):
-#         self.set_location(self.location()*s)
-#         self.units = units
-#     def scale(self, s:torch.FloatTensor): self.set_location(self.location()*s)
-#     def transform(self, T_tr):
-#         self.rotate(T_tr[...,:3,:3])
-#         self.set_location( T_tr[...,:3,:3]@self.location()+T_tr[...,:3,-1])
-#     def to(self, device):
-#         self.T = self.T.to(device)
-#         self.device = device
-#         return self
-#     def dtype(self, dtype):
-#         self.T = self.T.to(dtype)
-#         return self
-#     def invert(self):
-#         self.T = self.get_inverse()
-#     def get_inverse(self):
-#         R_inv = self.rotation().transpose(-2,-1)
-#         t_inv = - R_inv @ self.location()
-#         new_shape = list(R_inv.shape)
-#         new_shape[-1]=4
-#         new_shape[-2]=4
-#         T_inv = torch.zeros( *new_shape , dtype= self.T.dtype)
-#         T_inv[...,:3,:3] = R_inv
-#         T_inv[...,:3,-1] = t_inv
-#         T_inv[...,3,3] = 1
-#         return T_inv
+        T = T_self@T_other
+        pose = Pose(T=T)
+        # R = pose.rotation()
+        # t = pose.location()
 
-#     def __eq__(self, other):
-#         return torch.equal(self.T,other.T)
+        # R_ = R_self@R_other
+
+        # print(T_self)
+        # print(R_self)
+        # print(t_self)
+        # print(s_self)
+        # print(T_other)
+        # print(R_other)
+        # print(t_other)
+        # print(s_other)
+        # print(R)
+        # print(t)
+
+        return pose
+
+    def dist(self, other):
+        t_i = self.location()
+        t_o = other.location()
+        assert(t_i.shape[0]==t_o.shape[0])
+        t_norm = torch.norm(t_i-t_o)
+
+        e_i = self.euler
+        e_o = other.euler
+        angle = e_i.dist(e_o)
+        return t_norm, angle
+
+        # assert(e_i.shape[0]==e_o.shape[0])
 
 if __name__ == "__main__":
     p = Pose()

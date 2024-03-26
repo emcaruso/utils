@@ -7,6 +7,12 @@ import torch.nn.functional as F
 from PIL import Image, ImageFilter
 import torchvision.transforms as T
 from skimage import feature, filters
+try:
+    from .general import get_monitor
+except:
+    from general import get_monitor
+
+m = get_monitor()
 
 class Image():
     def __init__(self, img=None, path=None, gray=False, resolution_drop=1., device='cpu'):
@@ -53,6 +59,13 @@ class Image():
             return b1 and b2
         return False
 
+    def draw_circles(self, centers, radius=3, color=(255,0,255), thickness=2):
+        img = self.numpy()
+        for center in centers:
+            cv2.circle(img, center.astype(np.int32), radius, color, thickness)
+            # cv2.circle(img, (100,100), radius, color, thickness)
+        return Image(img)
+
     def get_gray_cmap( self , cmap='nipy_spectral'):
         dtype = self.img.dtype
         c = plt.get_cmap(cmap)
@@ -84,10 +97,12 @@ class Image():
     def clone(self):
         return self.img.detach().clone()
 
-    def gray(self):
+    def gray(self, keepdim=False):
         if len(self.shape)>2:
             gray = self.float()
-            gray = gray.mean(dim=-1)
+            gray = gray.mean(dim=-1, keepdim=keepdim)
+            print(keepdim)
+            print(gray.shape)
             # return gray.to
             return gray
         else: return self.img
@@ -98,10 +113,13 @@ class Image():
     def show(self, img_name="Unk", wk=0, resolution_drop = 1):
         resized = cv2.resize(self.numpy(), (int(self.img.shape[1]/resolution_drop), int(self.img.shape[0]/resolution_drop)), interpolation= cv2.INTER_LINEAR)
         cv2.imshow(img_name, resized)
-        cv2.waitKey(wk)
+        key = cv2.waitKey(wk)
+        return key
 
-    def save(self, img_path):
+
+    def save(self, img_path, verbose=False):
         cv2.imwrite(img_path, self.numpy())
+        print("saved image in: ", img_path)
 
     def get_indices_with_val(self, val):
         indices = torch.nonzero(self.img == val)
@@ -131,6 +149,29 @@ class Image():
         # cv2.imshow("",image_curr.numpy())
         # cv2.waitKey(0)
         return image_curr
+
+    def get_pix_max_intensity(self, dtype=torch.float32):
+        img = torch.mean(self.img, dim=-1, dtype=dtype)
+        m = img.max()
+        pix_max = torch.nonzero(img == m)
+        return pix_max, m
+
+    def get_pix_min_intensity(self, dtype=torch.float32):
+        img = torch.mean(self.img, dim=-1, dtype=dtype)
+        m = img.min()
+        pix_min = torch.nonzero(img == m)
+        return pix_min, m
+
+    def get_intensity_mean(self, dtype=torch.float32):
+        m = torch.mean(self.img, dtype=dtype)
+        return m
+
+        # print(pix_max.shape)
+        # self.show()
+        # flat_index = img.argmax()
+        # coords = torch.unravel_index(flat_index, img.shape)
+        # index = img.argmax()
+        # print(index)
 
     def eval_bilinear(self, pixels, top_left):
 
@@ -184,3 +225,38 @@ class Image():
         cols = sampled_indices % new_img.shape[1]
 
         return torch.stack((cols, rows), dim=1)
+
+    def show_points(self, coords=[], method="cv2", wk=1, name="unk"):
+
+        if method=="plt":
+            plt.imshow(self.numpy().astype(np.uint8))  # Cast to uint8 for image display
+            for y, x in coords:
+                plt.plot(x, y, 'ro')  # 'ro' for red circle; adjust color and marker as needed
+            plt.show()
+        elif method == "cv2":
+            img = self.numpy()
+            for y, x in coords:
+                cv2.circle(img, (int(x), int(y)), radius=3, color=(0, 0, 255), thickness=-1)  # Red points
+            cv2.imshow(name, img)
+            cv2.waitKey(wk)  # Wait for a key press to close the window
+
+
+    @staticmethod
+    def show_multiple_images( images, wk=0, name="image", undistort=None, cams=None ):
+        for i, img in enumerate(images):
+
+            if undistort is not None:
+                assert cams is not None
+                cam = cams[i]
+                img = cam.intr.undistort_image( img )
+
+            img = img.numpy()
+            resized = cv2.resize(img, (int(m.width/2), int(m.height/2)), interpolation= cv2.INTER_LINEAR)
+            winname=name+"_"+str(i).zfill(3)
+            cv2.namedWindow(winname)        # Create a named window
+            cv2.moveWindow(winname,  int(((i%2)==1)*(m.width/2)),int((i>1)*(m.height/2)) )
+            cv2.imshow(winname, resized)
+        key = cv2.waitKey(wk)
+        return key
+
+

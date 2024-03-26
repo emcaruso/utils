@@ -17,6 +17,8 @@ class frame_extractor:
         self.converter.OutputPixelFormat = pylon.PixelType_BGR8packed
         # self.converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAlignedsignal_period
         self.load_devices()
+        self.min_exp_time = 20
+        self.max_exp_time = 200000
 
     def load_devices(self):
         self.tlf = pylon.TlFactory.GetInstance()
@@ -47,18 +49,80 @@ class frame_extractor:
 
         # set exposure time
         for camera in self.cam_array:
-            camera.ExposureTime.SetValue(exposure_time)
+            self.change_exposure(camera, exposure_time)
 
         #set hardware trigger 
         for camera in self.cam_array:
-           camera.BslPeriodicSignalPeriod=signal_period
-           camera.BslPeriodicSignalDelay=0
-           camera.TriggerSelector="FrameStart"
-           camera.TriggerMode="On"
-           camera.TriggerSource="PeriodicSignal1"
+            self.set_trigger(camera, signal_period)
 
         self.cam_array.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
 
+    def change_exposure(self, camera=None, exposure_time:int = 20000):
+        if camera is None:
+            for cam in self.cam_array:
+                cam.ExposureTime.SetValue(exposure_time)
+        else:
+            camera.ExposureTime.SetValue(exposure_time)
+
+    def tune_exposure(self,exposure_time=20000, K_et=100, key="max", val_target=245, val_thresh=5, show=True, start=True):
+
+        if start:
+            self.start_cams(exposure_time=exposure_time)
+
+        # Tune exposure time
+        bool_list = [False for i in range(self.num_cameras)]
+        ets = [0 for i in range(self.num_cameras)]
+
+        while True:
+            images = self.grab_multiple_cams()
+            if show: Image.show_multiple_images(images, wk=1)
+            for i, image in enumerate(images):
+
+                if bool_list[i]: continue
+
+                if key=="max":
+                    _, val = image.get_pix_max_intensity()
+                elif key=="min":
+                    _, val = image.get_pix_min_intensity()
+                elif key=="mean":
+                    val = image.get_intensity_mean()
+
+
+                # change exposure time
+                cam = self.cam_array[i]
+                et = cam.ExposureTime.GetValue()
+
+                r = val-val_target
+                et_new = int(et-K_et*r)
+                # et_new = max(et_new, self.min_exp_time)
+                # et_new = min(et_new, self.max_exp_time)
+                # self.cfg.tuning.exposure_time = et_new
+
+                if abs(r)<val_thresh or et_new<=self.min_exp_time or et_new>=self.max_exp_time:
+                    bool_list[i] = True
+                    ets[i] = et_new
+                else:
+                    self.change_exposure(cam, et_new)
+                
+            if all(bool_list):
+                print("calibrated exposure times: ", ets)
+                return ets
+
+    def set_trigger(self, camera=None, signal_period = 250000):
+
+        if camera is None:
+            for cam in self.cam_array:
+                cam.BslPeriodicSignalPeriod=signal_period
+                cam.BslPeriodicSignalDelay=0
+                cam.TriggerSelector="FrameStart"
+                cam.TriggerMode="On"
+                cam.TriggerSource="PeriodicSignal1"
+        else:
+            camera.BslPeriodicSignalPeriod=signal_period
+            camera.BslPeriodicSignalDelay=0
+            camera.TriggerSelector="FrameStart"
+            camera.TriggerMode="On"
+            camera.TriggerSource="PeriodicSignal1"
     
     def grab_multiple_cams(self, timeout:int = 5000):
         assert(self.cam_array.IsGrabbing())
@@ -91,16 +155,14 @@ class frame_extractor:
                     break
         return images
 
-    def show_cams(self, wk=0):
-        images = self.grab_multiple_cams()
-        for cam_id, img in enumerate(images):
-            img = img.numpy()
-            resized = cv2.resize(img, (int(m.width/2), int(m.height/2)), interpolation= cv2.INTER_LINEAR)
-            winname="Cam_"+str(cam_id).zfill(3)
-            cv2.namedWindow(winname)        # Create a named window
-            cv2.moveWindow(winname,  int(((cam_id%2)==1)*(m.width/2)),int((cam_id>1)*(m.height/2)) )
-            cv2.imshow(winname, resized)
-        cv2.waitKey(wk)
+    def show_cams(self, wk=0, undistort=None, cams=None):
+        while True:
+            images = self.grab_multiple_cams()
+            v = Image.show_multiple_images(images, wk, undistort=undistort, cams=cams)
+            if not v:
+                break
+
+
 
     def collect_frames_multiple(self, manual:bool=True, max_frames:int = 50, show:bool=True, func_show=[], drop_rate:int=2):
         collection = []
