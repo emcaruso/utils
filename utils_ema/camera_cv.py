@@ -124,9 +124,9 @@ class Intrinsics():
     def get_K_in_pixels(self):
         K = self.K.clone()
         r = self.pixel_unit_ratio()
-        K[...,0,0]*=r
-        K[...,1,1]*=r
-        K[...,:2,-1]*=r
+        K[...,:2,:]*=r
+        # K[...,1,1]*=r
+        # K[...,:2,-1]*=r
         return K
     def get_K_und(self, alpha=0, central_pp=True):
         K_pix_und = None
@@ -135,9 +135,10 @@ class Intrinsics():
         if self.D is not None:
             w = int(self.resolution[0])
             h = int(self.resolution[1])
-            K_pix_und, roi_und = cv2.getOptimalNewCameraMatrix(self.K_pix.cpu().numpy(),self.D.cpu().numpy(),(w,h),alpha,(w,h), central_pp)
+            K_pix_und, roi_und = cv2.getOptimalNewCameraMatrix(self.K_pix.cpu().numpy(),self.D.cpu().numpy(),(w,h),alpha,(w,h), centerPrincipalPoint=central_pp)
             K_pix_und = torch.from_numpy(K_pix_und) 
-            K_und = K_pix_und * self.unit_pixel_ratio().cpu()
+            K_und = K_pix_und.clone()
+            K_und[...,:2,:] *= self.unit_pixel_ratio().cpu()
         else:
             K_und = self.K
             K_pix_und = self.K_pix
@@ -308,18 +309,37 @@ class Camera_cv():
         origin, dir = c.pix2ray( grid )
         return origin, dir
 
+    # def pix2dir( self, pix ):
+    #     pix = pix.to(self.device)*self.intr.unit_pixel_ratio() # pixels to units
+    #     ndc = (pix - self.intr.sensor_size*0.5) / self.intr.lens()
+    #     dir = torch.cat( (ndc, torch.ones( list(ndc.shape[:-1])+[1] ).to(ndc.device) ), -1 )
+    #     dir_norm = torch.nn.functional.normalize( dir, dim=-1 )
+    #     return torch.matmul(dir_norm, self.pose.rotation().T.to(ndc.device))
+
+    # def pix2dir( self, pix ):
+    #     pix = pix.to(self.device)*self.intr.unit_pixel_ratio() # pixels to units
+    #     ndc = (pix - self.intr.sensor_size*0.5) / self.intr.K_und[0,0]
+    #     dir = torch.cat( (ndc, torch.ones( list(ndc.shape[:-1])+[1] ).to(ndc.device) ), -1 )
+    #     dir_norm = torch.nn.functional.normalize( dir, dim=-1 )
+    #     return torch.matmul(dir_norm, self.pose.rotation().T.to(ndc.device))
+
     def pix2dir( self, pix ):
-        pix = pix.to(self.device)*self.intr.unit_pixel_ratio() # pixels to units
-        ndc = (pix - self.intr.sensor_size*0.5) / self.intr.lens()
-        dir = torch.cat( (ndc, torch.ones( list(ndc.shape[:-1])+[1] ).to(ndc.device) ), -1 )
-        dir_norm = torch.nn.functional.normalize( dir, dim=-1 )
-        return torch.matmul(dir_norm, self.pose.rotation().T.to(ndc.device))
+        # pix = pix.to(self.device)*self.intr.unit_pixel_ratio() # pixels to units
+        pix = pix.clone().type(torch.float64)
+        K_inv = torch.inverse(self.intr.K_pix_und)
+        shp = list(pix.shape)
+        shp[-1] = 1
+        pixels_homogeneous = torch.cat((pix, torch.ones(shp)), dim=-1)
+        normalized_coordinates = torch.matmul(K_inv, pixels_homogeneous.t()).t()
+        dir_norm = normalized_coordinates / torch.norm(normalized_coordinates, dim=-1, keepdim=True)
+        return torch.matmul(dir_norm, self.pose.rotation().T.to(pix.device))
 
     def pix2ray( self, pix ):
         dir = self.pix2dir( pix )
         origin = self.pose.location()
         origin = repeat_tensor_to_match_shape( origin, dir.shape )
         return origin, dir
+
 
     def collect_pixs_from_img( self, image, pix ):
         assert(pix.dtype==torch.int32)
@@ -397,7 +417,15 @@ class Camera_cv():
         else:
             return pixels
 
-
+    def test_pix2ray( self ):
+        rows = self.intr.resolution[0]
+        cols = self.intr.resolution[1]
+        pixs = torch.tensor( [[0, 0], [0, cols], [rows, 0], [rows, cols]] )
+        origin, dir = self.pix2ray( pixs )
+        p = plotter
+        p.plot_ray(origin, dir)
+        p.plot_cam(self, 1)
+        p.show()
 
 
     def project(self, points, depth_as_distance=False):

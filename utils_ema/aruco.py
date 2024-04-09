@@ -112,6 +112,7 @@ class ArucoDetector():
             marker_corners = marker_corners[indices]
             marker_ids = marker_ids[indices]
 
+        marker_corners = np.flip(marker_corners, axis=-1)
 
         return marker_corners, marker_ids, marker_rejected
 
@@ -121,6 +122,7 @@ class ArucoDetector():
 
     def draw_arucos(self, image, rejected=False):
         marker_corners, marker_ids, marker_rejected = self.detect_arucos(image)
+        marker_corners = np.flip(marker_corners, axis=-1)
         img = image.numpy().copy()
         img = cv2.aruco.drawDetectedMarkers(img, marker_corners, marker_ids)
         if rejected:

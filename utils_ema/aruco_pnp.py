@@ -145,7 +145,6 @@ class ArucoPnP():
         corners = self.corners[idxs,...]
 
         corners = corners.reshape([-1,3])
-        marker_corners = marker_corners.reshape([-1,2])
         
         # # debug
         # for i in range(len(corners)):
@@ -157,6 +156,8 @@ class ArucoPnP():
         camera_matrix = intr.K_pix.numpy()
         dist_coeffs = intr.D.numpy()
 
+        marker_corners = marker_corners.reshape([-1,2])
+        marker_corners = np.flip(marker_corners, axis=-1)
         ret, rvec, tvec = cv2.solvePnP(corners, marker_corners, camera_matrix, dist_coeffs)
 
         if vecs:
@@ -164,6 +165,7 @@ class ArucoPnP():
         
         pose = Pose.cvvecs2pose(rvec, tvec)
         return pose
+
 
     def draw_pose(self, image, intr):
         img_new = image.numpy().copy()
@@ -173,16 +175,27 @@ class ArucoPnP():
         if ret is None:
             return Image(img_new)
 
-        marker_corners, _, _ = self.detector.detect_arucos(image)
-        marker_corners = marker_corners.reshape([-1,2])
 
         cv2.drawFrameAxes(img_new, intr.K_pix.numpy(), intr.D.numpy(), rvec, tvec, length=0.1)
+
+        marker_corners, _, _ = self.detector.detect_arucos(image)
+        marker_corners = marker_corners.reshape([-1,2])
         img_new = Image(img_new).draw_circles(marker_corners, radius=3, color=(0,0,255), thickness=3)
+
         return img_new
 
     def show_pose(self, image, intr, wk=0, img_name="unk"):
         img = self.draw_pose(image=image, intr=intr)
-        img.show(img_name=img_name, wk=wk)
+        key = img.show(img_name=img_name, wk=wk)
+        return key
+
+    def show_poses(self, images, cams, wk=0, img_name="image"):
+        key = 0
+        for i in range(len(images)):
+            if i<len(images)-1: w = 1
+            else: w = wk
+            key = self.show_pose(images[i], cams[i].intr, wk=w, img_name=img_name+"_"+str(i))
+        return key
 
 
     def draw_arucos(self, image):
@@ -191,14 +204,3 @@ class ArucoPnP():
     def draw_arucos_multi(self, images):
         return self.detector.draw_arucos_multi(images)
                       
-    # def get_struct_points(self, image):
-    #     marker_corners, marker_idxs, _ = self.detector.detect_arucos(image)
-
-    # def get_struct_pose(self, image, intr):
-    #     gray = image.gray()
-    #     cam_matrix = intr.K_und
-    #     dist_coeff = intr.D
-    #     corners, ids, rejectedImgPoints = self.detector.detectMarkers(gray)
-
-
-        # frame_markers = aruco.drawDetectedMarkers(frame.copy(), corners, ids)

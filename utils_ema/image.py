@@ -59,13 +59,6 @@ class Image():
             return b1 and b2
         return False
 
-    def draw_circles(self, centers, radius=3, color=(255,0,255), thickness=2):
-        img = self.numpy()
-        for center in centers:
-            cv2.circle(img, center.astype(np.int32), radius, color, thickness)
-            # cv2.circle(img, (100,100), radius, color, thickness)
-        return Image(img)
-
     def get_gray_cmap( self , cmap='nipy_spectral'):
         dtype = self.img.dtype
         c = plt.get_cmap(cmap)
@@ -154,16 +147,19 @@ class Image():
         img = torch.mean(self.img, dim=-1, dtype=dtype)
         m = img.max()
         pix_max = torch.nonzero(img == m)
+        pix_max = pix_max.flip(dims=[-1])
         return pix_max, m
 
     def get_pix_min_intensity(self, dtype=torch.float32):
         img = torch.mean(self.img, dim=-1, dtype=dtype)
         m = img.min()
         pix_min = torch.nonzero(img == m)
+        pix_min = pix_min.flip(dims=[-1])
         return pix_min, m
 
     def get_intensity_mean(self, dtype=torch.float32):
         m = torch.mean(self.img, dtype=dtype)
+        m = m.flip(dims=[-1])
         return m
 
         # print(pix_max.shape)
@@ -226,19 +222,32 @@ class Image():
 
         return torch.stack((cols, rows), dim=1)
 
-    def show_points(self, coords=[], method="cv2", wk=1, name="unk"):
+    def draw_circles(self, centers, radius=3, color=(255,0,255), thickness=2):
+        if isinstance(centers, np.ndarray):
+            centers = torch.from_numpy(centers.astype(np.int32))
 
+        # centers = centers.flip(dims=[-1])
+        centers = torch.flip(centers.type(torch.int32), dims = [-1])
+
+        img = self.numpy()
+        for center in centers:
+            cv2.circle(img, center.numpy(), radius, color, thickness)
+            # cv2.circle(img, (100,100), radius, color, thickness)
+        return Image(img)
+
+    def show_points(self, coords=[], method="cv2", wk=1, name="unk"):
         if method=="plt":
             plt.imshow(self.numpy().astype(np.uint8))  # Cast to uint8 for image display
             for y, x in coords:
                 plt.plot(x, y, 'ro')  # 'ro' for red circle; adjust color and marker as needed
             plt.show()
         elif method == "cv2":
-            img = self.numpy()
-            for y, x in coords:
-                cv2.circle(img, (int(x), int(y)), radius=3, color=(0, 0, 255), thickness=-1)  # Red points
-            cv2.imshow(name, img)
-            cv2.waitKey(wk)  # Wait for a key press to close the window
+            img = Image(self.numpy())
+            coords = torch.flip(coords, dims=[-1])
+            for coord in coords:
+                img.draw_circles(coord, radius=3, color=(0, 0, 255), thickness=-1)
+            key = img.show(img_name=name, wk=wk)
+            return key
 
 
     @staticmethod

@@ -12,13 +12,14 @@ m = get_monitor()
 
 
 class frame_extractor:
-    def __init__(self):
+    def __init__(self, min_exp_time=20, max_exp_time=200000):
         self.converter = pylon.ImageFormatConverter()
         self.converter.OutputPixelFormat = pylon.PixelType_BGR8packed
         # self.converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAlignedsignal_period
         self.load_devices()
         self.min_exp_time = 20
         self.max_exp_time = 200000
+        self.count_max = 5
 
     def load_devices(self):
         self.tlf = pylon.TlFactory.GetInstance()
@@ -32,7 +33,14 @@ class frame_extractor:
         self.camera = pylon.InstantCamera(pylon.TlFactory.GetInstance().CreateFirstDevice())
         self.camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
 
+    def restart_cams(self):
+        self.stop_multiple_cams()
+        p = self.last_cams_params
+        self.start_cams( p[0], p[1], p[2] )
+
     def start_cams(self, num_cameras:int = None, signal_period:int = 250000, exposure_time:int = 20000):
+
+        self.last_cams_params = (num_cameras, signal_period, exposure_time)
 
         # get devices
         if num_cameras is None: num_cameras = len(self.devices)
@@ -55,7 +63,8 @@ class frame_extractor:
         for camera in self.cam_array:
             self.set_trigger(camera, signal_period)
 
-        self.cam_array.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
+        # self.cam_array.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
+        self.cam_array.StartGrabbing(pylon.GrabStrategy_OneByOne)
 
     def change_exposure(self, camera=None, exposure_time:int = 20000):
         if camera is None:
@@ -124,22 +133,23 @@ class frame_extractor:
             camera.TriggerMode="On"
             camera.TriggerSource="PeriodicSignal1"
     
-    def grab_multiple_cams(self, timeout:int = 5000):
+    def grab_multiple_cams(self, timeout:int = 5000, ensure_sync=False):
         assert(self.cam_array.IsGrabbing())
 
-        images = []
         img_nr = -1
-        # print("AO")
+        count = 0
+        images = [None] * self.num_cameras
+
         while True:
             # Wait for an image and then retrieve it. A timeout of 5000 ms is used.
             grabResult = self.cam_array.RetrieveResult(timeout, pylon.TimeoutHandling_ThrowException)
+
             i = grabResult.ImageNumber
             if  i!=img_nr:
                 img_nr = i
                 images.clear()
                 images = [None] * self.num_cameras
 
-            # print(i)
 
             # Image grabbed successfully?
             if grabResult.GrabSucceeded():
@@ -149,10 +159,18 @@ class frame_extractor:
                 img = image.GetArray()
                 grabResult.Release()
                 images[cam_id] = Image(img=img)
-                if any( im is None for im in images):
-                    continue
-                else:
+                if not any( im is None for im in images):
                     break
+            else:
+                print("Error: ", grabResult.ErrorCode, grabResult.ErrorDescription)
+
+            if count > self.count_max:
+                self.restart_cams()
+                print("Falied sync, restart")
+                count = 0
+                # break
+            count += 1
+
         return images
 
     def show_cams(self, wk=0, undistort=None, cams=None):
@@ -161,8 +179,6 @@ class frame_extractor:
             v = Image.show_multiple_images(images, wk, undistort=undistort, cams=cams)
             if not v:
                 break
-
-
 
     def collect_frames_multiple(self, manual:bool=True, max_frames:int = 50, show:bool=True, func_show=[], drop_rate:int=2):
         collection = []

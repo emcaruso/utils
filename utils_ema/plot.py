@@ -1,6 +1,5 @@
 import plotly.graph_objects as go
 import wandb
-
 try:
     from .geometry_pose import *
     from .geometry_euler import *
@@ -292,34 +291,39 @@ class plotter():
 
 
 
+
+
+
 if __name__ == "__main__":
 
-    # plot a sphere
-    f = Frame( torch.eye(4, dtype=torch.float32))
-    f.set_location( torch.FloatTensor([0,0,0.5]))
-    r = torch.FloatTensor( [0.5])
-    s = sphere( f, r)
-    plotter.plot_sphere(s)
+    plotter.test_pix2ray()
 
-    # plot lines
-    start = torch.tensor([
-        [0.7, 0.0, 0.1],
-        [0.5, 0.1, 0.1],
-        ])
-    end = torch.tensor([
-        [0.2, 0.2, 0.3],
-        [0.0, 0.9, 0.3],
-        ])
-    plotter.plot_line(start,end)
+    # # plot a sphere
+    # f = Frame( torch.eye(4, dtype=torch.float32))
+    # f.set_location( torch.FloatTensor([0,0,0.5]))
+    # r = torch.FloatTensor( [0.5])
+    # s = sphere( f, r)
+    # plotter.plot_sphere(s)
 
-    # plot points
-    points = torch.tensor([
-        [0.1, 0.2, 0.3],
-        [0.5, 0.4, 0.5],
-        [0.3, 0.5, 0.4],
-        [0.5, 0.6, 0.2],
-        [0.5, 0.3, 0.1]
-    ])
-    plotter.plot_points(-points)
+    # # plot lines
+    # start = torch.tensor([
+    #     [0.7, 0.0, 0.1],
+    #     [0.5, 0.1, 0.1],
+    #     ])
+    # end = torch.tensor([
+    #     [0.2, 0.2, 0.3],
+    #     [0.0, 0.9, 0.3],
+    #     ])
+    # plotter.plot_line(start,end)
 
-    plotter.show()
+    # # plot points
+    # points = torch.tensor([
+    #     [0.1, 0.2, 0.3],
+    #     [0.5, 0.4, 0.5],
+    #     [0.3, 0.5, 0.4],
+    #     [0.5, 0.6, 0.2],
+    #     [0.5, 0.3, 0.1]
+    # ])
+    # plotter.plot_points(-points)
+
+    # plotter.show()
