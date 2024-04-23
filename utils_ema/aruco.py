@@ -140,14 +140,14 @@ class ArucoDetector():
 if __name__=="__main__":
     aruco_dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_1000)
     ah = ArucoGenerator(aruco_dictionary)
-    marker_size = 200
+    marker_size = 800
     spacing = int(marker_size*0.1)
     num_markers = 180
     num_stripes = 30
     border_pixs = max(int(marker_size*0.02),1)
-    X = 6
+    X = 20
     Y = 4
-    num_grids = 4
+    num_grids = 1
 
     # stripe = ah.generate_aruco_stripe(100, num_markers, spacing, marker_size)
     # cv2.imwrite("./arucos/aruco_sequence.png", stripe)

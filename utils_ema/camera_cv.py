@@ -128,7 +128,7 @@ class Intrinsics():
         # K[...,1,1]*=r
         # K[...,:2,-1]*=r
         return K
-    def get_K_und(self, alpha=0, central_pp=True):
+    def get_K_und(self, alpha=0, central_pp=True, same_fx_fy=True):
         K_pix_und = None
         K_und = None
         roi_und = None
@@ -136,6 +136,12 @@ class Intrinsics():
             w = int(self.resolution[0])
             h = int(self.resolution[1])
             K_pix_und, roi_und = cv2.getOptimalNewCameraMatrix(self.K_pix.cpu().numpy(),self.D.cpu().numpy(),(w,h),alpha,(w,h), centerPrincipalPoint=central_pp)
+
+            if same_fx_fy:
+                lens = (K_pix_und[0,0]+K_pix_und[1,1])/2
+                K_pix_und[0,0] = lens
+                K_pix_und[1,1] = lens
+
             K_pix_und = torch.from_numpy(K_pix_und) 
             K_und = K_pix_und.clone()
             K_und[...,:2,:] *= self.unit_pixel_ratio().cpu()

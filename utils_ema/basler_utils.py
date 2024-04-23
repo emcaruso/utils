@@ -133,7 +133,7 @@ class frame_extractor:
             camera.TriggerMode="On"
             camera.TriggerSource="PeriodicSignal1"
     
-    def grab_multiple_cams(self, timeout:int = 5000, ensure_sync=False):
+    def grab_multiple_cams(self, timeout:int = 5000):
         assert(self.cam_array.IsGrabbing())
 
         img_nr = -1

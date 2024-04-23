@@ -10,6 +10,7 @@ import numpy as np
 from mathutils import Matrix, Vector
 
 from utils_ema.camera_cv import *
+from utils_ema.geometry_pose import Pose
 
 @contextmanager
 def stdout_redirected(to=os.devnull):
@@ -112,6 +113,9 @@ def insert_object_into_collection(collection_name, obj):
     collection.objects.link(obj)
     print(f"Object '{obj.name}' inserted into collection '{collection_name}'")
 
+def clear_animation_data(obj):
+    obj.animation_data_clear()
+
 
 def insert_objects_into_collection_byname(collection_name, object_names):
 
@@ -146,10 +150,8 @@ def generate_camera_from_camcv(cam, name):
     camera_data = bpy.data.cameras.new(name=cam.name)
     camera_data.sensor_width = cam.intr.sensor_size[0]*1000
     camera_object = bpy.data.objects.new(cam.name, camera_data)
-
     bpy.context.scene.render.resolution_x = cam.intr.resolution[0]
     bpy.context.scene.render.resolution_y = cam.intr.resolution[1]
-
     K = cam.intr.K_und
     lens = ((K[0,0]+K[1,1])/2)*1000
     camera_data.lens = lens
@@ -157,6 +159,46 @@ def generate_camera_from_camcv(cam, name):
     camera_object.matrix_world=Matrix(cam.pose.get_T().numpy())
     blenderTransform( camera_object )
     return camera_object, camera_data
+
+def set_object_pose(obj, pose: Pose):
+    obj.location = pose.location().numpy()
+    obj.rotation_euler = pose.euler.e.numpy()
+    obj.rotation_mode = pose.euler.convention
+
+
+# def generate_camera_from_camcv(cam, name):
+#     cam.name = name
+#     camera_data = bpy.data.cameras.new(name=cam.name)
+#     camera_data.sensor_width = cam.intr.sensor_size[0]*1000
+#     camera_object = bpy.data.objects.new(cam.name, camera_data)
+
+#     bpy.context.scene.render.resolution_x = cam.intr.resolution[0]
+#     bpy.context.scene.render.resolution_y = cam.intr.resolution[1]
+
+#     K = cam.intr.K_und
+#     fx = K[0,0]
+#     fy = K[1,1]
+#     if fx>fy:
+#         aspect_y = fx/fy
+#         lens= fx*1000
+#         bpy.context.scene.render.pixel_aspect_y = aspect_y
+#     else:
+#         aspect_x = fy/fx
+#         lens= fy*1000
+#         bpy.context.scene.render.pixel_aspect_x = aspect_x
+#     # if fx>fy:
+#     #     aspect_x = fx/fy
+#     #     lens= fy*1000
+#     #     bpy.context.scene.render.pixel_aspect_x = aspect_x
+#     # else:
+#     #     aspect_y = fy/fx
+#     #     lens= fx*1000
+#     #     bpy.context.scene.render.pixel_aspect_y = aspect_y
+
+#     camera_data.lens = lens
+#     camera_object.matrix_world=Matrix(cam.pose.get_T().numpy())
+#     blenderTransform( camera_object )
+#     return camera_object, camera_data
 
 
 

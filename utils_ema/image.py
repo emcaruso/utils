@@ -36,8 +36,6 @@ class Image():
             # self.img = self.img[...,0:1]
             # self.img = torch.mean( self.img, dim=-1, dtype=torch.uint8)
 
-        self.shape = self.img.shape
-
     def to(self, device):
         self.device=device
         self.img = self.img.to(device)
@@ -69,9 +67,6 @@ class Image():
         rgb_tensor = rgb_tensor.type(dtype)
         return Image(rgb_tensor)
 
-    def shape(self):
-        return self.img.shape
-
     def resize(self, resolution=None, resolution_drop=None):
         assert( (resolution is None) ^ (resolution_drop is None) )
         if(resolution is not None):
@@ -88,17 +83,23 @@ class Image():
         return resized
 
     def clone(self):
-        return self.img.detach().clone()
+        return Image(self.img.detach().clone())
 
     def gray(self, keepdim=False):
-        if len(self.shape)>2:
+        if len(self.img.shape)>2:
             gray = self.float()
             gray = gray.mean(dim=-1, keepdim=keepdim)
-            print(keepdim)
-            print(gray.shape)
+            # print(keepdim)
+            # print(gray.shape)
             # return gray.to
             return gray
         else: return self.img
+
+    def one2three_channels(self):
+        if len(self.img.shape)==2:
+            self.img = self.img.unsqueeze(-1)
+        if self.img.shape[-1]==1:
+            self.img = self.img.repeat(1,1,3)
 
     def numpy(self):
         return self.img.detach().cpu().numpy()
@@ -268,4 +269,11 @@ class Image():
         key = cv2.waitKey(wk)
         return key
 
-
+    @staticmethod
+    def merge_images( image_1, image_2, weight):
+        assert(weight>=0 and weight<=1)
+        w1 = weight
+        w2 = 1-weight
+        new_img = image_1.float()*w1 + image_2.float()*w2
+        new_image = Image(new_img)
+        return new_image

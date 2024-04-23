@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import cv2.aruco as aruco
 try:
     from .image import Image
     from .aruco import ArucoDetector
@@ -8,6 +9,7 @@ except:
     from image import Image
     from aruco import ArucoDetector
     from geometry_pose import Pose
+
 
 class Charuco(ArucoDetector):
 
@@ -40,6 +42,7 @@ class Charuco(ArucoDetector):
                                                                                      board_params["length_square_real"],
                                                                                      board_params["length_marker_real"],
                                                                                      board_params["aruco_dictionary"]),
+                                            "thickness": board_params["thickness"],
                                             "number_x_square": board_params["number_x_square"],
                                             "number_y_square": board_params["number_y_square"],
                                             "length_square_real": board_params["length_square_real"],
@@ -47,26 +50,57 @@ class Charuco(ArucoDetector):
                                             "aruco_dictionary": board_params["aruco_dictionary"],
                                              "n_markers": int(board_params["number_x_square"]*board_params["number_y_square"]/2),
                                              "n_corners": int((board_params["number_x_square"]-2) * (board_params["number_y_square"]-2)),
+                                            "length_x": board_params["number_x_square"]*board_params["length_square_real"],
+                                            "length_y": board_params["number_y_square"]*board_params["length_square_real"],
                                              "aruco_dictionary": board_params["aruco_dictionary"] } )
 
 
         self.charuco_data = charuco_data
 
 
-    def detect_charuco_corners(self, image, board):
-        aruco_dict = board["aruco_dictionary"]
-        board = board["charuco_board"]
+    # def detect_charuco_corners(self, image, board):
+    #     aruco_dict = board["aruco_dictionary"]
+    #     board = board["charuco_board"]
+    #     img = image.numpy()
+    #     marker_corners, marker_ids, _ = cv2.aruco.detectMarkers(img, aruco_dict)
+    #     charuco_corners = None
+    #     charuco_ids = None
+    #     if marker_corners:
+    #         _, charuco_corners, charuco_ids = cv2.aruco.interpolateCornersCharuco(marker_corners, marker_ids, img, board)
+    #     return charuco_corners, charuco_ids, marker_corners, marker_ids
 
-        img = image.numpy()
-        marker_corners, marker_ids, _ = cv2.aruco.detectMarkers(img, aruco_dict)
-        charuco_corners = None
-        charuco_ids = None
-        if marker_corners:
-            _, charuco_corners, charuco_ids = cv2.aruco.interpolateCornersCharuco(marker_corners, marker_ids, img, board)
+    def generate_charuco_images(self):
+        images = []
+        for i in range(len(self.charuco_data["boards"])):
+            images.append(self.generate_charuco_image(board_id=i))
+        return images
 
-        return charuco_corners, charuco_ids, marker_corners, marker_ids
+    def generate_charuco_image(self, board_id=0, marginSize=0, marker_pixs=100):
+        # Create Charuco board
+        b = self.charuco_data["boards"][board_id]
+        img = cv2.aruco.CharucoBoard.generateImage(b["charuco_board"], (b["number_x_square"]*marker_pixs, b["number_y_square"]*marker_pixs), marginSize=marginSize)
+        image = Image(img)
+        return image
 
-    def detect_charuco_corners_multi(self, image):
+    def detect_charuco_corners_multi(self, images):
+        R = [[],[],[],[]]
+
+        for image in images:
+            res = self.detect_charuco_corners(image)
+            for i, r in enumerate(res):
+                if len(r)!=0:
+                    R[i].append(r)
+
+        for i, r in enumerate(R):
+            if len(R[i])!=0:
+                R[i] = np.vstack(R[i])
+
+        return tuple(R)
+
+        # return charuco_corners_all, charuco_corners_ids, charuco_markers_cor, charuco_markers_ids
+        # pass
+
+    def detect_charuco_corners(self, image):
 
         img = image.numpy()
 
@@ -105,7 +139,7 @@ class Charuco(ArucoDetector):
         return charuco_corners_all, charuco_corners_ids, charuco_markers_cor, charuco_markers_ids
 
     def draw_charuco(self, image, corners=True, markers=True, borderColor=(0,255,255) ):
-        charuco_corners, charuco_ids, marker_corners, marker_ids = self.detect_charuco_corners_multi(image)
+        charuco_corners, charuco_ids, marker_corners, marker_ids = self.detect_charuco_corners(image)
 
         if charuco_corners is None:
             return image.clone()
