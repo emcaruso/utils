@@ -7,6 +7,38 @@ import numpy as np
 import time
 from screeninfo import get_monitors
 import os
+import importlib.util
+
+##### IMPORT ######
+
+def load_class_from_path(path, class_name):
+    module_name = 'custom_module'  # This is an arbitrary name
+
+    # Create a module spec from the file location
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    
+    # Extract the class from the module
+    cls = getattr(module, class_name, None)
+    if cls is None:
+        raise ImportError(f"No class named {class_name} found in {path}.")
+    return cls
+
+def load_function_from_path(path, function_name):
+    module_name = 'custom_module'  # This is an arbitrary name
+
+    # Create a module spec from the file location
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    
+    # Extract the function from the module
+    func = getattr(module, function_name, None)
+    if func is None:
+        raise ImportError(f"No function named {function_name} found in {path}.")
+    return func
+
 
 ##### OTHER #####
 
@@ -94,4 +126,5 @@ def ask_question( question , values ):
         if choice.lower() in values:
             return choice.lower()
         print("Invalid input.")
+
 

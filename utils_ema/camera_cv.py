@@ -311,8 +311,9 @@ class Camera_cv():
         return sampl_image_idxs
 
     def get_all_rays(self):
-        grid = c.get_pixel_grid( )
-        origin, dir = c.pix2ray( grid )
+        grid = self.get_pixel_grid( )
+        # print(grid.shape)
+        origin, dir = self.pix2ray( grid.view(-1,2) )
         return origin, dir
 
     # def pix2dir( self, pix ):
@@ -333,12 +334,21 @@ class Camera_cv():
         # pix = pix.to(self.device)*self.intr.unit_pixel_ratio() # pixels to units
         pix = pix.clone().type(torch.float64)
         K_inv = torch.inverse(self.intr.K_pix_und)
-        shp = list(pix.shape)
+
+        original_shape = list(pix.shape)
+        pix_flatten = pix.view(-1,2)
+
+        shp = list(pix_flatten.shape)
         shp[-1] = 1
-        pixels_homogeneous = torch.cat((pix, torch.ones(shp)), dim=-1)
+        pixels_homogeneous = torch.cat((pix_flatten, torch.ones(shp)), dim=-1)
+
         normalized_coordinates = torch.matmul(K_inv, pixels_homogeneous.t()).t()
         dir_norm = normalized_coordinates / torch.norm(normalized_coordinates, dim=-1, keepdim=True)
-        return torch.matmul(dir_norm, self.pose.rotation().T.to(pix.device))
+        dir_flatten = torch.matmul(dir_norm, self.pose.rotation().T.to(pix.device))
+
+        d = dir_flatten.reshape( *(original_shape[0:-1]+[3]) )
+
+        return d
 
     def pix2ray( self, pix ):
         dir = self.pix2dir( pix )
