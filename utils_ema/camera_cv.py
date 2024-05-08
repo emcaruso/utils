@@ -236,7 +236,7 @@ class Camera_cv():
         for image_name in images:
             image_path = self.image_paths[image_name]
             image = Image(path=image_path, device=self.device, resolution_drop=self.resolution_drop)
-            self.assert_image_shape(image)
+            # self.assert_image_shape(image)
             self.images[image_name] = image
 
     def free_images(self):

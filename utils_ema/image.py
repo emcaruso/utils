@@ -1,3 +1,4 @@
+from logging import raiseExceptions
 import cv2
 import torch
 import os, sys
@@ -15,9 +16,10 @@ except:
 m = get_monitor()
 
 class Image():
-    def __init__(self, img=None, path=None, gray=False, resolution_drop=1., device='cpu'):
+    def __init__(self, img=None, path=None, gray=False, resolution_drop=1., device='cpu', dtype=torch.float32):
         assert((img is None) ^ (path is None))
         self.device = device
+
         if img is not None:
             if isinstance(img, np.ndarray):
                 img = torch.from_numpy(img)
@@ -26,6 +28,10 @@ class Image():
             self.img = torch.from_numpy(cv2.imread(path)).to(device)
             self.img = self.img[:,:,[2,1,0]]
             # self.img = self.swapped()
+        if len(self.img.shape)<=2:
+            raise ValueError(f" {len(self.img.shape)} has to be a shape of len at least 3 (Height, Width, Channels)")
+        if not self.img.shape[-1] in [1,3,4]:
+            raise ValueError(f" n_channels (last image dimension) has to be 1 (gray), 3 (rgb) or 4 (rgba), got {self.img.shape[-1]}")
 
         if resolution_drop!=1.:
             self.resize(resolution_drop=resolution_drop)
@@ -36,6 +42,26 @@ class Image():
             # self.img = self.img[...,0:1]
             # self.img = torch.mean( self.img, dim=-1, dtype=torch.uint8)
 
+        self.dtype = self.img.dtype
+        self.type(dtype)
+
+    def type(self, dtype):
+        if dtype==self.dtype: return True
+
+        if self.dtype==torch.uint8 and (dtype==torch.float32 or dtype==torch.float64):
+            scaler = 1/256
+
+        elif (self.dtype==torch.float32 or self.dtype==torch.float64) and dtype == torch.uint8:
+            scaler = 256
+
+        else:
+            raise ValueError(f"{dtype} not valid type")
+
+        self.img = self.img.type(dtype)
+        self.img *= scaler
+        self.dtype = dtype
+        return True
+
     def to(self, device):
         self.device=device
         self.img = self.img.to(device)
@@ -44,11 +70,11 @@ class Image():
     def swapped(self):
         return torch.swapaxes(self.img,0,1)
 
-    def float(self):
-        if self.img.dtype == torch.float32:
-            return self.img
-        img = self.img.type(torch.float32)/255
-        return img
+    # def float(self):
+    #     if self.img.dtype == torch.float32:
+    #         return self.img
+    #     img = self.img.type(torch.float32)/255
+    #     return img
 
     def is_grayscale( self, image ):
         if image.shape[-1]==3:
@@ -203,6 +229,7 @@ class Image():
         torch.Tensor: Indices of sampled pixels.
         """
 
+        # import ipdb; ipdb.set_trace()
         if len(self.img.shape)>=2:
             new_img = self.img.mean(dim=-1)
         else:

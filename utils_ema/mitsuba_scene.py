@@ -118,7 +118,6 @@ class MitsubaScene():
         sampler.set_samples_per_wavefront(spp_per_pass)
         sampler.seed(seed, wavefront_size)
 
-        # import ipdb; ipdb.set_trace()
 
         origin = dr.cuda.Array3f(origin)
         cam_dir = dr.cuda.Array3f(cam_dir)
@@ -130,6 +129,8 @@ class MitsubaScene():
 
         spec, mask, aov = integrator.sample(scene=self.scene, ray=ray, sampler=sampler)
         return spec, mask, aov
+
+    # def render_dr_rays(self, ray:mi.RayDifferential3f):
 
     @dr.wrap_ad(source='torch', target='drjit')
     def render_rays_torch(self, origin, cam_dir, spp=32, seed=42):
