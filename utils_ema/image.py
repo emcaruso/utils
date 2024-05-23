@@ -28,8 +28,13 @@ class Image():
             self.img = torch.from_numpy(cv2.imread(path)).to(device)
             self.img = self.img[:,:,[2,1,0]]
             # self.img = self.swapped()
-        if len(self.img.shape)<=2:
-            raise ValueError(f" {len(self.img.shape)} has to be a shape of len at least 3 (Height, Width, Channels)")
+
+        if len(self.img.shape)==2:
+            self.img = self.img.unsqueeze(-1)
+
+        if len(self.img.shape)<1 or len(self.img.shape)>3:
+            raise ValueError(f" {len(self.img.shape)} has to be a shape of len  3 (Height, Width, Channels) or 2 (Height, Width)")
+
         if not self.img.shape[-1] in [1,3,4]:
             raise ValueError(f" n_channels (last image dimension) has to be 1 (gray), 3 (rgb) or 4 (rgba), got {self.img.shape[-1]}")
 
@@ -43,24 +48,30 @@ class Image():
             # self.img = torch.mean( self.img, dim=-1, dtype=torch.uint8)
 
         self.dtype = self.img.dtype
-        self.type(dtype)
+        self.set_type(dtype)
+
+
+    def set_type(self, dtype):
+        self.img = self.type(dtype)
+        self.dtype = dtype
+
 
     def type(self, dtype):
-        if dtype==self.dtype: return True
+        if dtype==self.dtype: return self.img
 
         if self.dtype==torch.uint8 and (dtype==torch.float32 or dtype==torch.float64):
-            scaler = 1/256
+            img = self.img.type(dtype)
+            img = img*0.00390625
 
         elif (self.dtype==torch.float32 or self.dtype==torch.float64) and dtype == torch.uint8:
-            scaler = 256
+            img = self.img*256
+            img = img.type(dtype)
 
         else:
             raise ValueError(f"{dtype} not valid type")
 
-        self.img = self.img.type(dtype)
-        self.img *= scaler
-        self.dtype = dtype
-        return True
+
+        return img
 
     def to(self, device):
         self.device=device
@@ -70,11 +81,8 @@ class Image():
     def swapped(self):
         return torch.swapaxes(self.img,0,1)
 
-    # def float(self):
-    #     if self.img.dtype == torch.float32:
-    #         return self.img
-    #     img = self.img.type(torch.float32)/255
-    #     return img
+    def float(self):
+        return self.type(torch.float32)
 
     def is_grayscale( self, image ):
         if image.shape[-1]==3:
@@ -138,7 +146,9 @@ class Image():
 
 
     def save(self, img_path, verbose=False):
-        cv2.imwrite(img_path, self.numpy())
+
+        img = self.to('cpu').type(torch.uint8).numpy()
+        cv2.imwrite(img_path, img)
         print("saved image in: ", img_path)
 
     def get_indices_with_val(self, val):

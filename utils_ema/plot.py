@@ -83,6 +83,10 @@ class plotter():
         )
         return fig
 
+    @classmethod
+    def plot_point_light(cls, point_light, size=1, opacity=1, color='red', frame=None):
+        cls.plot_points(point_light.position, size=size, opacity=opacity, color=color, frame=frame)
+
 
     @classmethod
     def plot_points(cls, points, size=1, opacity=1, color='red', frame=None):
@@ -296,7 +300,7 @@ class plotter():
 
 if __name__ == "__main__":
 
-    plotter.test_pix2ray()
+    # plotter.test_pix2ray()
 
     # # plot a sphere
     # f = Frame( torch.eye(4, dtype=torch.float32))
@@ -316,7 +320,7 @@ if __name__ == "__main__":
     #     ])
     # plotter.plot_line(start,end)
 
-    # # plot points
+    # plot points
     # points = torch.tensor([
     #     [0.1, 0.2, 0.3],
     #     [0.5, 0.4, 0.5],
@@ -324,6 +328,8 @@ if __name__ == "__main__":
     #     [0.5, 0.6, 0.2],
     #     [0.5, 0.3, 0.1]
     # ])
-    # plotter.plot_points(-points)
+    points = torch.rand([10000,3])
+    plotter.plot_points(-points, size=5, opacity=0.1)
 
-    # plotter.show()
+
+    plotter.show()

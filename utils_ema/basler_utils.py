@@ -20,6 +20,8 @@ class frame_extractor:
         self.min_exp_time = 20
         self.max_exp_time = 200000
         self.count_max = 5
+        self.cam_array = None
+        self.camera = None
 
     def load_devices(self):
         self.tlf = pylon.TlFactory.GetInstance()
@@ -29,16 +31,19 @@ class frame_extractor:
         if self.n_devices == 0:
             raise Exception("No devices detected!")
 
-    def start_single_cam(self):
-        self.camera = pylon.InstantCamera(pylon.TlFactory.GetInstance().CreateFirstDevice())
-        self.camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
+    # def start_single_cam(self):
+    #     self.camera = pylon.InstantCamera(pylon.TlFactory.GetInstance().CreateFirstDevice())
+    #     self.camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
 
     def restart_cams(self):
         self.stop_multiple_cams()
         p = self.last_cams_params
         self.start_cams( p[0], p[1], p[2] )
 
-    def start_cams(self, num_cameras:int = None, signal_period:int = 250000, exposure_time:int = 20000):
+    def start_cams(self, num_cameras:int = None, signal_period:int = 100000, exposure_time:int = 20000):
+
+        if self.cam_array is not None and self.cam_array.IsGrabbing():
+            return False
 
         self.last_cams_params = (num_cameras, signal_period, exposure_time)
 
@@ -60,11 +65,15 @@ class frame_extractor:
             self.change_exposure(camera, exposure_time)
 
         #set hardware trigger 
-        for camera in self.cam_array:
-            self.set_trigger(camera, signal_period)
+        # for camera in self.cam_array:
+        self.set_trigger(self.cam_array, signal_period)
 
         # self.cam_array.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
-        self.cam_array.StartGrabbing(pylon.GrabStrategy_OneByOne)
+        # self.cam_array.StartGrabbing(pylon.GrabStrategy_LatestImages)
+        # self.cam_array.StartGrabbing(pylon.GrabStrategy_OneByOne)
+        self.cam_array.StartGrabbing(pylon.GrabStrategy_UpcomingImage)
+
+        return True
 
     def change_exposure(self, camera=None, exposure_time:int = 20000):
         if camera is None:
@@ -118,22 +127,14 @@ class frame_extractor:
                 return ets
 
     def set_trigger(self, camera=None, signal_period = 250000):
+        camera.BslPeriodicSignalPeriod=signal_period
+        camera.BslPeriodicSignalDelay=0
+        camera.TriggerSelector="FrameStart"
+        camera.TriggerMode="On"
+        camera.TriggerSource="PeriodicSignal1"
 
-        if camera is None:
-            for cam in self.cam_array:
-                cam.BslPeriodicSignalPeriod=signal_period
-                cam.BslPeriodicSignalDelay=0
-                cam.TriggerSelector="FrameStart"
-                cam.TriggerMode="On"
-                cam.TriggerSource="PeriodicSignal1"
-        else:
-            camera.BslPeriodicSignalPeriod=signal_period
-            camera.BslPeriodicSignalDelay=0
-            camera.TriggerSelector="FrameStart"
-            camera.TriggerMode="On"
-            camera.TriggerSource="PeriodicSignal1"
-    
-    def grab_multiple_cams(self, timeout:int = 5000):
+    def grab_multiple_cams(self, timeout:int = 5000, dtype=torch.float32):
+
         assert(self.cam_array.IsGrabbing())
 
         img_nr = -1
@@ -150,7 +151,6 @@ class frame_extractor:
                 images.clear()
                 images = [None] * self.num_cameras
 
-
             # Image grabbed successfully?
             if grabResult.GrabSucceeded():
                 # Access the image data.
@@ -158,7 +158,7 @@ class frame_extractor:
                 image = self.converter.Convert(grabResult)
                 img = image.GetArray()
                 grabResult.Release()
-                images[cam_id] = Image(img=img)
+                images[cam_id] = Image(img=img, dtype=dtype)
                 if not any( im is None for im in images):
                     break
             else:
@@ -169,6 +169,7 @@ class frame_extractor:
                 print("Falied sync, restart")
                 count = 0
                 # break
+
             count += 1
 
         return images

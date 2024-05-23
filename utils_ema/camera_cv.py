@@ -128,7 +128,7 @@ class Intrinsics():
         # K[...,1,1]*=r
         # K[...,:2,-1]*=r
         return K
-    def get_K_und(self, alpha=0, central_pp=True, same_fx_fy=True):
+    def get_K_und(self, alpha=1, central_pp=True, same_fx_fy=True):
         K_pix_und = None
         K_und = None
         roi_und = None

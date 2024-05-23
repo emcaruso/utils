@@ -25,19 +25,19 @@ class Scene():
         self.__set_attrs("objects", objects)
 
     # get attribute at frame t
-    def __get_attr_in_frame(self, attr_name, frame):
+    def __get_attrs_in_frame(self, attr_name, frame):
         attr = getattr(self, attr_name)
         assert( hasattr(attr,"__iter__") )
         return attr[frame]
 
     def get_cams_in_frame(self, frame):
-        return self.__get_attr_in_frame("cams", frame)
+        return self.__get_attrs_in_frame("cams", frame)
 
     def get_lights_in_frame(self, frame):
-        return self.__get_attr_in_frame("lights", frame)
+        return self.__get_attrs_in_frame("lights", frame)
 
     def get_objects_in_frame(self, frame):
-        return self.__get_attr_in_frame("objects", frame)
+        return self.__get_attrs_in_frame("objects", frame)
 
     # get attributes
     def __get_attrs(self, attr_name):
@@ -75,26 +75,24 @@ class Scene():
 
     # plot attributes
     def __plot_attrs(self, attr_name, kwargs={}):
-        attrs = self.__get_attrs(attr_name)
+
+        attrs = getattr(self, attr_name)
         if attrs is None: return False
 
-        plot_fns = { "cams": plotter.plot_cam, "lights": plotter.plot_points, "objects": plotter.plot_object}
+        plot_fns = { "cams": plotter.plot_cam, "lights": plotter.plot_point_light, "objects": plotter.plot_object}
         plot_fn = plot_fns[attr_name]
 
-        if len(attrs)>1:
-            for frame, ats in enumerate(attrs):
-                for a in ats:
-                    plot_fn(a, frame=frame, **kwargs)
-        else:
-            for a in self.__get_attrs(attr_name):
-                plot_fn(a, **kwargs)
+        for frame, ats in enumerate(attrs):
+            for a in ats:
+                plot_fn(a, frame=frame, **kwargs)
+
         return True
 
     def plot_cams(self):
         self.__plot_attrs("cams")
 
     def plot_lights(self, point_light_size=5):
-        kwargs = { "point_light_size":point_light_size }
+        kwargs = { "size":point_light_size }
         self.__plot_attrs("lights", kwargs)
 
     def plot_objects(self):

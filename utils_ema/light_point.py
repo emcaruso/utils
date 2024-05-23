@@ -2,9 +2,10 @@ import torch
 import copy as cp
 
 class PointLight():
-    def __init__(self, name="unk_point_light", position=torch.tensor([0,0,0]), intensity=torch.tensor([0,0,0]), device='cpu', dtype=torch.float32):
+    def __init__(self, name="unk_point_light", position=torch.tensor([0,0,0]), intensity=torch.tensor([0,0,0]), channel=None, device='cpu', dtype=torch.float32):
         self.name = name
         self.position = position
+        self.channel = channel
         self.intensity = intensity
         self.device = device
         self.dtype = dtype
@@ -19,5 +20,5 @@ class PointLight():
 
         if name is None: name = self.name+"_copy"
 
-        new_cam = PointLight(name=name, position=new_position, intensity=new_intensity, device = self.device, dtype=self.typ)
+        new_cam = PointLight(name=name, position=new_position, intensity=new_intensity, channel=self.channel, device = self.device, dtype=self.dtype)
         return new_cam

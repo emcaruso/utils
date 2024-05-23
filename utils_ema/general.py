@@ -11,6 +11,16 @@ import importlib.util
 
 ##### IMPORT ######
 
+def load_module_from_path(file_path, module_name):
+    """ Load a module from a given file path without altering sys.path. """
+    spec = importlib.util.spec_from_file_location(module_name, file_path)
+    if spec is not None:
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+    else:
+        raise ImportError(f"Cannot load module from {file_path}")
+
 def load_class_from_path(path, class_name):
     module_name = 'custom_module'  # This is an arbitrary name
 
