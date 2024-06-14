@@ -123,6 +123,7 @@ class Pose():
         R_t = R.transpose(-2,-1)
         self.euler = self.euler.rot2eul(R_t)
         self.position = -R_t @ self.location()
+        return self
 
     def get_R_inv(self):
         return self.rotation().transpose(-2,-1)

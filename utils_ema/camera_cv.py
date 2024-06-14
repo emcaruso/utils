@@ -9,16 +9,16 @@ try:
     from .torch_utils import *
     from .general import *
     from .image import *
-    try: from .diff_renderer import *
-    except: pass
+    # try: from .diff_renderer import *
+    # except: pass
 except:
     from geometry_pose import *
     from plot import *
     from torch_utils import *
     from general import *
     from image import *
-    try: from diff_renderer import *
-    except: pass
+    # try: from diff_renderer import *
+    # except: pass
 
 class Camera_opencv:
     """ Camera in OpenCV format.
@@ -30,11 +30,12 @@ class Camera_opencv:
         device (torch.device): Device where the matrices are stored
     """
 
-    def __init__(self, K, R, t, device='cpu'):
+    def __init__(self, K, R, t, device='cpu', dtype=torch.float32):
         self.K = K.to(device) if torch.is_tensor(K) else torch.FloatTensor(K).to(device)
         self.R = R.to(device) if torch.is_tensor(R) else torch.FloatTensor(R).to(device)
         self.t = t.to(device) if torch.is_tensor(t) else torch.FloatTensor(t).to(device)
         self.device = device
+        self.dtype = dtype
 
     def to(self, device="cpu"):
         self.K = self.K.to(device)
@@ -42,6 +43,12 @@ class Camera_opencv:
         self.t = self.t.to(device)
         self.device = device
         return self
+
+    def type(self, dtype):
+        self.K.type(dtype)
+        self.R.type(dtype)
+        self.t.type(dtype)
+        self.dtype = dtype
 
     @property
     def center(self):
@@ -219,7 +226,7 @@ class Camera_cv():
         R = self.pose.rotation()
         t = self.pose.location()
         self.pose.invert()
-        cam_cv = Camera_opencv( K, R, t, device)
+        cam_cv = Camera_opencv( K, R, t, device, self.typ)
 
         return cam_cv
 
@@ -235,6 +242,7 @@ class Camera_cv():
 
         for image_name in images:
             image_path = self.image_paths[image_name]
+            if not os.path.exists(image_path): raise ValueError(f"{image_path} is not a valid path")
             image = Image(path=image_path, device=self.device, resolution_drop=self.resolution_drop)
             # self.assert_image_shape(image)
             self.images[image_name] = image
@@ -243,7 +251,7 @@ class Camera_cv():
         del self.images
         self.images = {}
     
-    def show_image(self,img_name="rgb", wk=0):
+    def show_image(self,img_name=None, wk=0):
         image = self.get_image(img_name)
         image.show(img_name,wk)
 
@@ -294,6 +302,7 @@ class Camera_cv():
     #     return sampl_image_idxs
 
     def sample_rand_pixs_in_mask( self, mask, n_pixs=None):
+
         self.assert_image_shape(mask)
         m = mask.transpose(0,1)
         grid = self.get_pixel_grid( device=mask.device)
@@ -302,45 +311,34 @@ class Camera_cv():
             # return torch.empty((0, 2), dtype=torch.float32, device=self.device)
             return None
         pixels_idxs = torch.reshape(pixels_idxs, (-1,len(self.intr.resolution)))
-        perm = torch.randperm(pixels_idxs.shape[0])
+
         if n_pixs is None:
-            n_pixs = len(perm)
-        n_pixs = min(n_pixs, len(perm))
-        sampl_image_idxs = pixels_idxs[perm][:n_pixs]
-        # sampl_image_idxs = pixels_idxs[perm][:(int(len(perm)*percentage))]
+            n_pixs = pixels_idxs.shape[0]
+            sampl_image_idxs = pixels_idxs
+        else:
+            perm = torch.randperm(pixels_idxs.shape[0])
+            n_pixs = min(n_pixs, len(perm))
+            sampl_image_idxs = pixels_idxs[perm][:n_pixs]
+
         return sampl_image_idxs
 
     def get_all_rays(self):
         grid = self.get_pixel_grid( )
-        # print(grid.shape)
         origin, dir = self.pix2ray( grid.view(-1,2) )
         return origin, dir
-
-    # def pix2dir( self, pix ):
-    #     pix = pix.to(self.device)*self.intr.unit_pixel_ratio() # pixels to units
-    #     ndc = (pix - self.intr.sensor_size*0.5) / self.intr.lens()
-    #     dir = torch.cat( (ndc, torch.ones( list(ndc.shape[:-1])+[1] ).to(ndc.device) ), -1 )
-    #     dir_norm = torch.nn.functional.normalize( dir, dim=-1 )
-    #     return torch.matmul(dir_norm, self.pose.rotation().T.to(ndc.device))
-
-    # def pix2dir( self, pix ):
-    #     pix = pix.to(self.device)*self.intr.unit_pixel_ratio() # pixels to units
-    #     ndc = (pix - self.intr.sensor_size*0.5) / self.intr.K_und[0,0]
-    #     dir = torch.cat( (ndc, torch.ones( list(ndc.shape[:-1])+[1] ).to(ndc.device) ), -1 )
-    #     dir_norm = torch.nn.functional.normalize( dir, dim=-1 )
-    #     return torch.matmul(dir_norm, self.pose.rotation().T.to(ndc.device))
 
     def pix2dir( self, pix ):
         # pix = pix.to(self.device)*self.intr.unit_pixel_ratio() # pixels to units
         pix = pix.clone().type(torch.float64)
-        K_inv = torch.inverse(self.intr.K_pix_und)
+        # pix = pix.clone()
+        K_inv = torch.inverse(self.intr.K_pix_und).type(pix.dtype).to(pix.device)
 
         original_shape = list(pix.shape)
         pix_flatten = pix.view(-1,2)
 
         shp = list(pix_flatten.shape)
         shp[-1] = 1
-        pixels_homogeneous = torch.cat((pix_flatten, torch.ones(shp)), dim=-1)
+        pixels_homogeneous = torch.cat((pix_flatten, torch.ones(shp, device=pix.device)), dim=-1)
 
         normalized_coordinates = torch.matmul(K_inv, pixels_homogeneous.t()).t()
         dir_norm = normalized_coordinates / torch.norm(normalized_coordinates, dim=-1, keepdim=True)
@@ -361,20 +359,19 @@ class Camera_cv():
         assert(pix.dtype==torch.int32)
         return image[pix[:,0], pix[:,1],...]
 
-    def get_overlayed_image( self, obj, image_name='rgb' ):
-        # image = self.get_image(image_name)
-        # bytes to float
-        image = self.get_image(image_name).float()
-        gbuffer = Renderer.diffrast(self, obj, ["mask"], with_antialiasing=True)
-        overlayed = (gbuffer["mask"].to(image.device) + 1.0) * image
-        # overlayed = (gbuffer["mask"].to(image.device)) * image
-        overlayed = overlayed.clamp_(min=0.0, max=1.0).cpu()
-        # overlayed = torch.swapaxes(overlayed, 0,1)
-
-        # overlayed_img = Image(img=overlayed)
-        # overlayed_img.img =  overlayed_img.swapped()
-        # return overlayed_img
-        return overlayed
+    # def get_overlayed_image( self, obj, image_name='rgb' ):
+    #     # image = self.get_image(image_name)
+    #     # bytes to float
+    #     image = self.get_image(image_name).float()
+    #     gbuffer = Renderer.diffrast(self, obj, ["mask"], with_antialiasing=True)
+    #     overlayed = (gbuffer["mask"].to(image.device) + 1.0) * image
+    #     # overlayed = (gbuffer["mask"].to(image.device)) * image
+    #     overlayed = overlayed.clamp_(min=0.0, max=1.0).cpu()
+    #     # overlayed = torch.swapaxes(overlayed, 0,1)
+    #     # overlayed_img = Image(img=overlayed)
+    #     # overlayed_img.img =  overlayed_img.swapped()
+    #     # return overlayed_img
+    #     return overlayed
 
     # projection
     def get_points_wrt_cam( self, points):

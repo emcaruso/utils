@@ -190,11 +190,13 @@ class ArucoPnP():
         return key
 
     def show_poses(self, images, cams, wk=0, img_name="image"):
-        key = 0
+        images_show = []
         for i in range(len(images)):
             if i<len(images)-1: w = 1
             else: w = wk
-            key = self.show_pose(images[i], cams[i].intr, wk=w, img_name=img_name+"_"+str(i))
+            img = self.draw_pose(images[i], intr=cams[i].intr)
+            images_show.append(img)
+        key = Image.show_multiple_images(images_show, wk=wk)
         return key
 
 

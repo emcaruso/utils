@@ -145,11 +145,12 @@ class Image():
         return key
 
 
-    def save(self, img_path, verbose=False):
+    def save(self, img_path, verbose=True):
 
         img = self.to('cpu').type(torch.uint8).numpy()
         cv2.imwrite(img_path, img)
-        print("saved image in: ", img_path)
+        if verbose:
+            print("saved image in: ", img_path)
 
     def get_indices_with_val(self, val):
         indices = torch.nonzero(self.img == val)

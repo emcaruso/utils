@@ -7,11 +7,22 @@ try:
 except:
     from image import *
 from utils_ema.general import get_monitor
+import pprint
 
 m = get_monitor()
 
 
 class frame_extractor:
+
+
+    sensor_sizes = {
+        "a2A1920-165g5c" : {
+            "sensor_width_mm": 6.6,
+            "sensor_height_mm": 4.1
+        }
+    }
+
+
     def __init__(self, min_exp_time=20, max_exp_time=200000):
         self.converter = pylon.ImageFormatConverter()
         self.converter.OutputPixelFormat = pylon.PixelType_BGR8packed
@@ -31,9 +42,36 @@ class frame_extractor:
         if self.n_devices == 0:
             raise Exception("No devices detected!")
 
-    # def start_single_cam(self):
-    #     self.camera = pylon.InstantCamera(pylon.TlFactory.GetInstance().CreateFirstDevice())
-    #     self.camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
+    def print_devices_info(self):
+        infos = self.get_devices_info()
+        pprint.pp(infos)
+
+    def get_devices_info(self):
+        infos = []
+        for i, device in enumerate(self.devices):
+            vendor_name = None
+            if device.IsVendorNameAvailable():
+                vendor_name = device.GetVendorName()
+            model_name = None
+            if device.IsModelNameAvailable():
+                model_name = device.GetModelName()
+            sensor_size = None
+            if model_name in self.sensor_sizes:
+                sensor_size = self.sensor_sizes[model_name]
+            infos.append({"id":i, "vendor_name":vendor_name, "model_name":model_name, "sensor_size":sensor_size})
+        return infos
+
+    def check_sensor_data_availability(self):
+        infos = self.get_devices_info()
+        err_str = ""
+        for i, info in enumerate(infos):
+            if info["model_name"] is None:
+                err_str += f"model name not available for camera {i}\n"
+            elif info["sensor_size"] is None:
+                err_str += f"sensor size not available for camera {i}, add sensor sizes for model {info['model_name']}\n"
+        if err_str != "":
+            raise ValueError(err_str)
+        
 
     def restart_cams(self):
         self.stop_multiple_cams()
@@ -243,6 +281,7 @@ class frame_extractor:
 
 if __name__=="__main__":
     frame_extr = frame_extractor()
+    frame_extr.print_devices_info()
 
     # # single frame
     # frame_extr.start_single_cam()

@@ -1,12 +1,12 @@
 import numpy as np
 import nvdiffrast.torch as dr
 import torch
-from utils_ema.general import timing_decorator
 from utils_ema.image import Image
 # from utils_ema.pbr_shader import PBR_Shader
-from utils_ema.user_mover import MoverOrbital
-from utils_ema.plot import plotter
 from utils_ema.torch_utils import get_device
+import os
+
+# os.environ['TORCH_CUDA_ARCH_LIST']
 
 class Renderer:
     """ Rasterization-based triangle mesh renderer that produces G-buffers for a set of views.
@@ -49,7 +49,7 @@ class Renderer:
         return torch.matmul(posw, t_mtx.t())[None, ...]
 
     @staticmethod
-    def projection(fx, fy, cx, cy, n, f, width, height, device):
+    def projection(fx, fy, cx, cy, n, f, width, height, device, dtype):
         # print(fx.device)
         # print(fy.device)
         # print(cx.device)
@@ -66,9 +66,11 @@ class Renderer:
         return torch.tensor([[2.0*fx/width,           0,       1.0 - 2.0 * cx / width,                  0],
                             [         0, 2.0*fy/height,      1.0 - 2.0 * cy / height,                  0],
                             [         0,             0,                 -(f+n)/(f-n),     -(2*f*n)/(f-n)],
-                            [         0,             0,                           -1,                  0.0]], device=device) 
+                            [         0,             0,                           -1,                  0.0]], device=device, dtype=dtype) 
     @staticmethod
     def to_gl_camera(camera, resolution, n=1000, f=5000):
+
+        # import ipdb; ipdb.set_trace()
 
         projection_matrix = Renderer.projection(fx=camera.K[0,0],
                                                 fy=camera.K[1,1],
@@ -78,7 +80,8 @@ class Renderer:
                                                 f=f,
                                                 width=resolution[1],
                                                 height=resolution[0],
-                                                device=camera.device)
+                                                device=camera.device,
+                                                dtype=camera.dtype)
 
         # projection_matrix = Renderer.projection(fx=camera.K[1,1],
         #                                         fy=camera.K[0,0],
@@ -90,14 +93,14 @@ class Renderer:
         #                                         height=resolution[1],
         #                                         device=camera.device)
 
-        Rt = torch.eye(4, device=camera.device)
+        Rt = torch.eye(4, device=camera.device, dtype=projection_matrix.dtype)
         Rt[:3, :3] = camera.R
         Rt[:3, 3] = camera.t
 
         gl_transform = torch.tensor([[1., 0,  0,  0],
                                     [0,  1., 0,  0],
                                     [0,  0, -1., 0],
-                                    [0,  0,  0,  1.]], device=camera.device)
+                                    [0,  0,  0,  1.]], device=camera.device, dtype=Rt.dtype)
 
         Rt = gl_transform @ Rt
         return projection_matrix @ Rt
@@ -139,6 +142,7 @@ class Renderer:
         gbuffer = {}
 
         gl_cam = camera.get_camera_opencv()
+        gl_cam.type(obj.mesh.uv.dtype)
         r = camera.intr.resolution
         r = [r[1],r[0]]
         P = Renderer.to_gl_camera( gl_cam, r , n=cls.near, f=cls.far)
@@ -151,6 +155,7 @@ class Renderer:
         # # pos = Renderer.transform_pos(P, ( v@R.t() )+l)
         # pos = Renderer.transform_pos(P, v+l)
 
+        # import ipdb; ipdb.set_trace()
 
         # v = obj.mesh.vertices+l
         # n = obj.mesh.vertex_normals.to(device)

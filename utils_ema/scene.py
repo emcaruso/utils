@@ -7,6 +7,21 @@ class Scene():
         self.set_lights(lights)
         self.set_objects(objects)
         self.device = device
+        self.scene_mitsuba = None
+
+    # def load_mitsuba_scene(self, xml_path):
+    #     pass
+
+    def set_mitsuba_scene(self, scene_mitsuba):
+        self.scene_mitsuba = scene_mitsuba
+
+    def get_mask_pixs_obj(self, cam_idx, obj_idx, channels, frame=0):
+        from utils_ema.diff_renderer import Renderer
+        cam = self.get_cam(idx=cam_idx, frame=frame)
+        obj = self.get_object(idx=obj_idx, frame=frame)
+        _, pixs, _ = Renderer.get_buffers_pixels_dirs( cam, obj, n_pixs=None, channels=['mask', 'position', 'normal'], no_contour=True, with_antialiasing=False)
+        # gbuff = Renderer.diffrast(camera=self.get_cam(cam_idx, frame), obj=self.get_object(obj_idx, frame), channels=channels)
+        return pixs
 
     # set attributes
     def __set_attrs( self, attr_name: str, attr ):
