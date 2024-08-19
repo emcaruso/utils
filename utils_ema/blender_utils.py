@@ -4,6 +4,7 @@ except:
     1
 from contextlib import contextmanager
 import os
+import subprocess
 import sys
 import torch
 import numpy as np
@@ -66,7 +67,7 @@ def launch_blender_script_local(blend_file, script_path, arguments=[""]):
 
     bpy.ops.wm.open_mainfile(filepath=blend_file)
     arg_str = " ".join(arguments)
-    exec(script_path + " " + arg_str)
+    subprocess.call("python " + script_path + " " + arg_str, shell=True)
 
 
 def get_blend_file(blend_dir):
