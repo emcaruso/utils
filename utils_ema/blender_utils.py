@@ -65,7 +65,6 @@ def launch_blender_script_local(blend_file, script_path, arguments=[""]):
     if "bpy" not in locals():
         import bpy
 
-    bpy.ops.wm.open_mainfile(filepath=blend_file)
     arg_str = " ".join(arguments)
     subprocess.call("python " + script_path + " " + arg_str, shell=True)
 
