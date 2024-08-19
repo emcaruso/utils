@@ -76,7 +76,19 @@ def delete_collection(collection_name):
     else:
         print(f"Collection '{collection_name}' does not exist.")
 
+def set_collection_hide_val(collection_name, val, ignore_errors=False):
+
+    if not ignore_errors:
+        # Check if the collection already exists
+        if collection_name not in bpy.data.collections:
+            raise ValueError (f"collection {collection_name} do not exists")
+
+    c = bpy.data.collections[collection_name]
+    c.hide_viewport = val
+
+
 def create_collection(collection_name):
+
     # Check if the collection already exists
     if collection_name in bpy.data.collections:
         print(f"Collection '{collection_name}' already exists.")

@@ -12,6 +12,12 @@ class Scene():
     # def load_mitsuba_scene(self, xml_path):
     #     pass
 
+    def get_n_frames(self):
+        return len(self.cams)
+
+    def get_n_cams(self):
+        return len(self.cams[0])
+
     def set_mitsuba_scene(self, scene_mitsuba):
         self.scene_mitsuba = scene_mitsuba
 
@@ -121,8 +127,3 @@ class Scene():
     def show_scene(self):
         self.plot_scene()
         plotter.show()
-
-
-
-        
-

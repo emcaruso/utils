@@ -54,7 +54,7 @@ def save_memory_mapped_indices(idxs, folder, name):
     list_flat = [ np.concatenate( i, axis = 0 ) for i in idxs ]
     idxs_flat = np.concatenate( list_flat, axis=0 )
     # idxs = np.concatenate( idxs, axis = 0 )
-    idxs_flat = idxs_flat.astype(np.int32)
+    idxs_flat = idxs_flat.astype(np.uint16)
     idxs_flat = idxs_flat.flatten()
     save_memory_mapped_arr(idxs_flat, folder, name, flat=True)
     with open(folder+"/"+name+'.pickle', 'wb') as file:
@@ -69,7 +69,7 @@ def load_memory_mapped_indices(folder, name):
     lengths = lengths[1:]
     n_frames = len(lengths[0])
 
-    data = load_memory_mapped_arr(folder,name,flat=True, dtype=np.int32)
+    data = load_memory_mapped_arr(folder,name,flat=True, dtype=np.uint16)
     indices = []
     c = 0
     for j in range(length):

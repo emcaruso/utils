@@ -102,7 +102,7 @@ class LightController():
         if only:
             for i in range(self.n_channels): self.led_off(i)
 
-        self.set_led_continuous(channel, amp=self.ampere_default)
+        self.set_led_continuous(channel, amp=amp)
  
     def led_off(self, channel):
         self.set_led_continuous(channel=channel, amp=0)

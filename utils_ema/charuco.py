@@ -15,6 +15,7 @@ class Charuco(ArucoDetector):
 
     def __init__(self, board_params):
         self.load_charuco_boards(board_params)
+        # import ipdb; ipdb.set_trace()
 
     def load_charuco_boards(self, board_params):
         """
@@ -116,8 +117,20 @@ class Charuco(ArucoDetector):
             aruco_dict = b["aruco_dictionary"]
             board = b["charuco_board"]
 
+            # detector_params = cv2.aruco.DetectorParameters()
+            # detector_params.minDistanceToBorder = 1
+            # # detector_params.minGroupDistance = 0.1
+            # # detector_params.minMarkerDistanceRate = 0.05
+            # detector_params.adaptiveThreshConstant = 1
+            # detector_params.adaptiveThreshWinSizeMin = 3
+            # detector_params.adaptiveThreshWinSizeStep = 1
+            # detector_params.cornerRefinementMinAccuracy = 0.01
+            # detector_params.cornerRefinementWinSize = 3
+            # detector = cv2.aruco.ArucoDetector(aruco_dict, detector_params)
+
             # try:
             marker_corners, marker_ids, _ = cv2.aruco.detectMarkers(img, aruco_dict)
+            # marker_corners, marker_ids, _ = detector.detectMarkers(img)
             # except:
             # marker_corners, marker_ids, _ = cv2.aruco.ArucoDetector().detectMarkers(img, aruco_dict)
             charuco_markers_cor.append(marker_corners)
@@ -141,7 +154,7 @@ class Charuco(ArucoDetector):
 
         return charuco_corners_all, charuco_corners_ids, charuco_markers_cor, charuco_markers_ids
 
-    def draw_charuco(self, image, corners=True, markers=True, borderColor=(0,255,255) ):
+    def draw_charuco(self, image, corners=True, markers=True, borderColor=(255,0,0) ):
         charuco_corners, charuco_ids, marker_corners, marker_ids = self.detect_charuco_corners(image)
 
         if len(charuco_corners) is 0:

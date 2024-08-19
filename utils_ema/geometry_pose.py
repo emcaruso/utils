@@ -196,6 +196,8 @@ class Pose():
     #     T_inv[...,3,3] = 1
     #     return T_inv
 
+
+
     def __eq__(self, other):
         b1 = torch.equal(self.position,other.position)
         b2 = torch.equal(self.euler.e,other.euler.e)
@@ -231,6 +233,27 @@ class Pose():
         # print(t)
 
         return pose
+
+    @classmethod
+    def average_poses( cls, pose_array ):
+        assert( hasattr(pose_array, "__iter__") )
+
+        Rs = []
+        ts = []
+        for pose in pose_array:
+            assert( type(pose)==cls ) 
+            Rs.append(pose.rotation().unsqueeze(0))
+            ts.append(pose.location().unsqueeze(0))
+
+        R = torch.cat(Rs, dim=0)
+        t = torch.cat(ts, dim=0)
+        R_avg = R.mean(dim=0)
+        U, _, Vt = torch.svd(R_avg)
+        R_mean = torch.matmul(U, Vt.t())
+        t_mean = t.mean(dim=0)
+        e = eul.rot2eul_YXZ(R=R_mean)
+        pose_mean = Pose(euler=e, position=t_mean)
+        return pose_mean
 
     def dist(self, other):
         t_i = self.location()

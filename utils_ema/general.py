@@ -53,8 +53,8 @@ def load_function_from_path(path, function_name):
 ##### OTHER #####
 
 def get_monitor():
-    for m in get_monitors():
-        return m
+    monitors = [m for m in get_monitors()]
+    return monitors[1]
 
 ##### PERFORMANCE ######
 
