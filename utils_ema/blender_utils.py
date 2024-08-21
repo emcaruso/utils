@@ -3,6 +3,7 @@ try:
 except:
     1
 from contextlib import contextmanager
+import copy
 import os
 import subprocess
 import sys
@@ -80,7 +81,7 @@ def get_blend_file(blend_dir):
     return blend_files[0]
 
 
-def blenderTransform(obj):
+def blender_camera_transform(obj):
     obj.rotation_euler[0] += math.pi
 
 
@@ -197,18 +198,33 @@ def generate_camera_from_camcv(cam, name):
     bpy.context.scene.render.resolution_x = cam.intr.resolution[0]
     bpy.context.scene.render.resolution_y = cam.intr.resolution[1]
     K = cam.intr.K_und
+    K_pix = cam.intr.K_pix_und
+    # print(K[0, 0])
+    # print(K[1, 1])
     lens = ((K[0, 0] + K[1, 1]) / 2) * 1000
+
+    # access the camera shift x and y
+    camera_data.shift_x = -(K_pix[0, 2] - cam.intr.resolution[0] / 2) / (
+        cam.intr.resolution[0]
+    )
+    camera_data.shift_y = (K_pix[1, 2] - cam.intr.resolution[1] / 2) / (
+        cam.intr.resolution[1]
+    )
+
     camera_data.lens = lens
     # extrinsics
     camera_object.matrix_world = Matrix(cam.pose.get_T().numpy())
-    blenderTransform(camera_object)
+    blender_camera_transform(camera_object)
     return camera_object, camera_data
 
 
 def set_object_pose(obj, pose: Pose):
-    obj.location = pose.location().numpy()
-    obj.rotation_euler = pose.euler.e.numpy()
+    scale = copy.deepcopy(obj.scale)
     obj.rotation_mode = pose.euler.convention
+    obj.matrix_world = Matrix(pose.get_T().numpy())
+    obj.scale = scale
+    # obj.location = pose.location().numpy()
+    # obj.rotation_euler = pose.euler.e.numpy()
 
 
 # def generate_camera_from_camcv(cam, name):
@@ -242,7 +258,7 @@ def set_object_pose(obj, pose: Pose):
 
 #     camera_data.lens = lens
 #     camera_object.matrix_world=Matrix(cam.pose.get_T().numpy())
-#     blenderTransform( camera_object )
+#     blender_camera_transform( camera_object )
 #     return camera_object, camera_data
 
 
