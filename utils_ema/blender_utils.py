@@ -199,8 +199,7 @@ def generate_camera_from_camcv(cam, name):
     bpy.context.scene.render.resolution_y = cam.intr.resolution[1]
     K = cam.intr.K_und
     K_pix = cam.intr.K_pix_und
-    # print(K[0, 0])
-    # print(K[1, 1])
+
     lens = ((K[0, 0] + K[1, 1]) / 2) * 1000
 
     # access the camera shift x and y

@@ -44,6 +44,7 @@ class Image:
                 img = torch.from_numpy(img)
             self.img = img.to(device)
         if path is not None:
+            # import ipdb; ipdb.set_trace()
             self.img = torch.from_numpy(cv2.imread(path)).to(device)
             if rgb_to_gbr:
                 self.img = self.img[:, :, [2, 1, 0]]
