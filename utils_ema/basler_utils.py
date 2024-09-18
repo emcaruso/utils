@@ -20,20 +20,14 @@ class frame_extractor:
         "a2A4504-5gcBAS": {"sensor_width_mm": 12.34, "sensor_height_mm": 12.34},
     }
 
-    def __init__(self, min_exp_time=20, max_exp_time=200000, sRGB=True):
-        self.converter = pylon.ImageFormatConverter()
-        self.converter.OutputPixelFormat = pylon.PixelType_BGR8packed
-        if sRGB:
-            self.sRGB = "sRgb"
-        else:
-            self.sRGB = "Off"
-        # self.converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAlignedsignal_period
+    def __init__(self, min_exp_time=20, max_exp_time=200000, sRGB=True, gray=False):
+
         self.load_devices()
+        self.sRGB = "sRgb" if sRGB else "Off"
+        self.pixel_format = "Mono8" if gray else "RGB8"
         self.min_exp_time = 20
         self.max_exp_time = 200000
         self.count_max = 5
-        self.cam_array = None
-        self.camera = None
 
     def load_devices(self):
         self.tlf = pylon.TlFactory.GetInstance()
@@ -46,6 +40,14 @@ class frame_extractor:
         print(f"PYLON: {self.n_devices} devices detected")
         if self.n_devices == 0:
             raise Exception("No devices detected!")
+
+        self.num_cameras = len(self.devices)
+        self.cam_array = pylon.InstantCameraArray(
+            min(len(self.devices), self.num_cameras)
+        )
+        for i, cam in enumerate(self.cam_array):
+            cam.Attach(self.tlf.CreateDevice(self.devices[i]))
+            print("Using device ", cam.GetDeviceInfo().GetModelName())
 
     def print_devices_info(self):
         infos = self.get_devices_info()
@@ -96,27 +98,18 @@ class frame_extractor:
         exposure_time: int = 20000,
     ):
 
-        if self.cam_array is not None and self.cam_array.IsGrabbing():
+        if self.cam_array.IsGrabbing():
             return False
 
         self.last_cams_params = (num_cameras, signal_period, exposure_time)
 
-        # get devices
-        if num_cameras is None:
-            num_cameras = len(self.devices)
-        self.num_cameras = num_cameras
-        self.cam_array = pylon.InstantCameraArray(
-            min(len(self.devices), self.num_cameras)
-        )
-        for i, cam in enumerate(self.cam_array):
-            cam.Attach(self.tlf.CreateDevice(self.devices[i]))
-            print("Using device ", cam.GetDeviceInfo().GetModelName())
         self.cam_array.Open()
         for idx, cam in enumerate(self.cam_array):
             camera_serial = cam.DeviceInfo.GetSerialNumber()
             print(f"set context {idx} for camera {camera_serial}")
             cam.SetCameraContext(idx)
             cam.BslColorSpace.Value = self.sRGB
+            cam.PixelFormat.Value = self.pixel_format
 
         # set exposure time
         for camera in self.cam_array:
@@ -126,10 +119,10 @@ class frame_extractor:
         # for camera in self.cam_array:
         self.set_trigger(self.cam_array, signal_period)
 
-        # self.cam_array.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
-        # self.cam_array.StartGrabbing(pylon.GrabStrategy_LatestImages)
-        # self.cam_array.StartGrabbing(pylon.GrabStrategy_OneByOne)
-        self.cam_array.StartGrabbing(pylon.GrabStrategy_UpcomingImage)
+        self.cam_array.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)  # fast
+        # self.cam_array.StartGrabbing(pylon.GrabStrategy_LatestImages) # fast
+        # self.cam_array.StartGrabbing(pylon.GrabStrategy_OneByOne)  # fast
+        # self.cam_array.StartGrabbing(pylon.GrabStrategy_UpcomingImage)  # slow
 
         return True
 
@@ -243,8 +236,7 @@ class frame_extractor:
             if grabResult.GrabSucceeded():
                 # Access the image data.
                 cam_id = grabResult.GetCameraContext()
-                image = self.converter.Convert(grabResult)
-                img = image.GetArray()
+                img = grabResult.GetArray()
                 grabResult.Release()
                 images[cam_id] = Image(img=img, dtype=dtype)
                 if not any(im is None for im in images):
@@ -321,31 +313,8 @@ class frame_extractor:
 
         return collection
 
-    def stop_single_cam(self):
-        self.camera.Close()
-
     def stop_multiple_cams(self):
         self.cam_array.Close()
-
-    def grab_single_cam(self):
-        assert self.camera.IsGrabbing()
-
-        # Wait for an image and then retrieve it. A timeout of 5000 ms is used.
-        grabResult = self.camera.RetrieveResult(
-            5000, pylon.TimeoutHandling_ThrowException
-        )
-
-        # Image gimg=rabbed successfully?
-        if grabResult.GrabSucceeded():
-            # Access the image data.
-            image = self.converter.Convert(grabResult)
-            img = Image(img=image.GetArray())
-            grabResult.Release()
-            # cv2.imshow( "grabbed", img )
-            # cv2.waitKey(0)
-            return img
-        else:
-            print("Error: ", grabResult.ErrorCode, grabResult.ErrorDescription)
 
 
 if __name__ == "__main__":

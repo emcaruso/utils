@@ -8,6 +8,8 @@ import torch.nn.functional as F
 from PIL import Image, ImageFilter
 import torchvision.transforms as T
 from skimage import feature, filters
+from scipy.ndimage import distance_transform_edt
+from pathlib import Path
 
 try:
     from .general import get_monitor
@@ -44,7 +46,6 @@ class Image:
                 img = torch.from_numpy(img)
             self.img = img.to(device)
         if path is not None:
-            # import ipdb; ipdb.set_trace()
             self.img = torch.from_numpy(cv2.imread(path)).to(device)
             if rgb_to_gbr:
                 self.img = self.img[:, :, [2, 1, 0]]
@@ -75,6 +76,14 @@ class Image:
         self.dtype = self.img.dtype
         self.set_type(dtype)
 
+    @staticmethod
+    def from_img(img):
+        return Image(img=img, dtype=img.dtype, device=img.device)
+
+    @staticmethod
+    def from_path(path):
+        return Image(path=path)
+
     def set_type(self, dtype):
         self.img = self.type(dtype)
         self.dtype = dtype
@@ -92,7 +101,12 @@ class Image:
         if dtype == self.dtype:
             return self.img
 
-        if self.dtype == torch.uint8 and (
+        if (self.dtype == torch.bool and (dtype in [torch.float32, torch.float64])) or (
+            self.dtype in [torch.float32, torch.float64] and (dtype == torch.bool)
+        ):
+            img = self.img.type(dtype)
+
+        elif self.dtype == torch.uint8 and (
             dtype == torch.float32 or dtype == torch.float64
         ):
             img = self.img.type(dtype)
@@ -139,7 +153,7 @@ class Image:
             .to(self.device)
         )
         rgb_tensor = rgb_tensor.type(dtype)
-        return Image(rgb_tensor)
+        return Image.from_img(rgb_tensor)
 
     def resize(self, resolution=None, resolution_drop=None):
         assert (resolution is None) ^ (resolution_drop is None)
@@ -163,7 +177,7 @@ class Image:
         return resized
 
     def clone(self):
-        return Image(self.img.detach().clone())
+        return Image.from_img(self.img.detach().clone())
 
     def gray(self, keepdim=False):
         if len(self.img.shape) > 2:
@@ -186,13 +200,18 @@ class Image:
         return self.img.detach().cpu().numpy()
 
     def show(self, img_name="Unk", wk=0):
-        cv2.namedWindow(img_name, cv2.WINDOW_NORMAL)  # Create a named window
-        cv2.resizeWindow(img_name, int(m.width / 2), int(m.height / 2))
+        # if window exists already
+        try:
+            cv2.getWindowProperty(img_name, cv2.WND_PROP_VISIBLE) <= 0
+        except:
+            cv2.namedWindow(img_name, cv2.WINDOW_NORMAL)  # Create a named window
+            cv2.resizeWindow(img_name, int(m.width / 2), int(m.height / 2))
         cv2.imshow(img_name, self.numpy())
         key = cv2.waitKey(wk)
         return key
 
     def save(self, img_path, verbose=True):
+        Path(img_path).parent.mkdir(parents=True, exist_ok=True)
 
         img = self.to("cpu").type(torch.uint8).numpy()
         cv2.imwrite(img_path, img)
@@ -204,22 +223,107 @@ class Image:
         indices = indices.to(torch.int32)
         return indices
 
-    def sobel(self):
-        # trans_lookup = T.Compose([
-        #     T.Grayscale(),
-        #     T.ToPILImage(),
-        # ])
-        # img_new = self.clone()
-        # img_new = trans_lookup(torch.swapaxes(self.img,0,-1))
-        # # img_new = img_new.filter(ImageFilter.FIND_EDGES)
-        # img_new = feature.canny(img_new)
-        # img_new = T.ToTensor()(img_new)  # Convert the image to a PyTorch tensor
-        # img_new = torch.swapaxes(img_new,0,-1)
+    def get_distance_map(self, thresh, exp=1, edge_method="sobel"):
+        if edge_method == "sobel":
+            filtered = self.sobel()
+            mask = ~((filtered.gray() > thresh).unsqueeze(-1).numpy())
+        elif edge_method == "canny":
+            filtered = self.canny(sigma=thresh)
+            mask = ~((filtered.gray() > 0.5).unsqueeze(-1).numpy())
+        else:
+            raise ValueError(f"edge_method {edge_method} not valid")
+        dist = distance_transform_edt(mask)
+        # dist = torch.from_numpy(dist / dist.max()).type(torch.float32)
+        dist = torch.from_numpy(dist).type(torch.float32)
+        dist = dist**exp
+        return Image.from_img(dist)
 
+    # sobel
+    def sobel_diff(self, kernel_size=3):
+
+        n_channels = self.img.shape[-1]
+
+        # 3x3 sobel kernel
+        if kernel_size == 3:
+            sobel_kernel_x = torch.tensor(
+                [[-1, 0, 1], [-1, 0, 1], [-1, 0, 1]],
+                dtype=torch.float32,
+                device=self.device,
+            )
+            sobel_kernel_y = torch.tensor(
+                [[-1, -1, -1], [0, 0, 0], [1, 1, 1]],
+                dtype=torch.float32,
+                device=self.device,
+            )
+        # 5x5 sobel kernel
+        elif kernel_size == 5:
+            sobel_kernel_x = torch.tensor(
+                [
+                    [-1, -2, 0, 2, 1],
+                    [-4, -8, 0, 8, 4],
+                    [-6, -12, 0, 12, 6],
+                    [-4, -8, 0, 8, 4],
+                    [-1, -2, 0, 2, 1],
+                ],
+                dtype=torch.float32,
+                device=self.device,
+            )
+            sobel_kernel_y = torch.tensor(
+                [
+                    [-1, -4, -6, -4, -1],
+                    [-2, -8, -12, -8, -2],
+                    [0, 0, 0, 0, 0],
+                    [2, 8, 12, 8, 2],
+                    [1, 4, 6, 4, 1],
+                ],
+                dtype=torch.float32,
+                device=self.device,
+            )
+
+        # Reshape the kernels to match the 4D input format expected by F.conv2d
+        sobel_kernel_x = sobel_kernel_x.view(
+            1, 1, kernel_size, kernel_size
+        )  # Shape: (out_channels, in_channels, kernel_height, kernel_width)
+        sobel_kernel_y = sobel_kernel_y.view(1, 1, kernel_size, kernel_size)
+        sobel_kernel_x = sobel_kernel_x.repeat(
+            n_channels, 1, 1, 1
+        )  # shape will be (3, 1, 3, 3)
+        sobel_kernel_y = sobel_kernel_y.repeat(
+            n_channels, 1, 1, 1
+        )  # shape will be (3, 1, 3, 3)
+
+        # swap first and last dimension, and add batch dim
+        image = self.img.permute(2, 0, 1).unsqueeze(0)
+
+        # Apply the Sobel kernels using 2D convolution
+        grad_x = F.conv2d(
+            image, sobel_kernel_x, padding=int(kernel_size / 2), groups=n_channels
+        )
+        grad_y = F.conv2d(
+            image, sobel_kernel_y, padding=int(kernel_size / 2), groups=n_channels
+        )
+
+        # Compute the gradient magnitude (eps is added to avoid to break gradients)
+        # grad_magnitude = torch.sqrt(
+        #     (torch.pow(grad_x, 2) + torch.pow(grad_y, 2)) + 1.0e-8
+        # )
+        grad_magnitude = torch.abs(grad_x).mean(dim=1) + torch.abs(grad_y).mean(dim=1)
+        img = grad_magnitude.permute(1, 2, 0)
+
+        sobel_img = Image.from_img(img)
+        # sobel_img.show(wk=1)
+
+        return sobel_img
+
+    def sobel(self):
         # print(self.gray().numpy().shape)
         # img_new = torch.from_numpy(feature.canny(self.gray().numpy()))
         img_new = torch.from_numpy(filters.sobel(self.gray().numpy()))
-        return Image(img_new)
+        return Image.from_img(img_new)
+
+    def canny(self, sigma):
+        img_new = torch.from_numpy(feature.canny(self.gray().numpy(), sigma))
+        return Image.from_img(img_new)
 
     def max_pooling(self, kernel_size=5):
         image_curr = F.max_pool2d(
@@ -299,7 +403,6 @@ class Image:
         torch.Tensor: Indices of sampled pixels.
         """
 
-        # import ipdb; ipdb.set_trace()
         if len(self.img.shape) >= 2:
             new_img = self.img.mean(dim=-1)
         else:
@@ -398,5 +501,5 @@ class Image:
         w1 = weight
         w2 = 1 - weight
         new_img = image_1.float() * w1 + image_2.float() * w2
-        new_image = Image(new_img)
+        new_image = Image.from_img(new_img)
         return new_image

@@ -6,10 +6,15 @@ from utils_ema.geometry_pose import Pose
 
 class CharucoBoard:
 
-    def __init__(self, board_params, pose=Pose(T=torch.eye(4))):
+    def __init__(self, board_params, pose=Pose(T=torch.eye(4)), device="cpu"):
         self.params = board_params
         self.grid = self.get_board_grid()
         self.pose = pose
+        self.set_device(device)
+
+    def set_device(self, device):
+        self.grid = self.grid.to(device)
+        self.pose = self.pose.to(device)
 
     def clone(self):
         ch_new = CharucoBoard(self.params, self.pose.clone())

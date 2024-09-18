@@ -83,6 +83,21 @@ class Intrinsics:
         self.K_und, self.K_pix_und, self.roi_und = self.get_K_und()
         self.dtype(typ)
         self.device = device
+        self.compute_undistortion_map()
+
+    def compute_undistortion_map(self):
+        D = None
+        if self.D is not None:
+            D = self.D.numpy()
+
+        self.undist_map = cv2.initUndistortRectifyMap(
+            self.K_pix.numpy(),
+            D,
+            None,
+            self.K_pix_und.numpy(),
+            (int(self.resolution[0]), int(self.resolution[1])),
+            cv2.CV_32FC1,
+        )
 
     def cx(self):
         return self.K[..., 0, 2]
@@ -167,7 +182,34 @@ class Intrinsics:
         # K[...,:2,-1]*=r
         return K
 
-    def get_K_und(self, alpha=0.5, central_pp=True, same_fx_fy=True):
+    def get_K_params(self):
+
+        if self.K_params is None:
+            self.K_params = torch.cat(
+                (
+                    self.K[..., 0, 0].detach().clone(),
+                    self.K[..., 1, 1].detach().clone(),
+                    self.K[..., 0, 2].detach().clone(),
+                    self.K[..., 1, 2].detach().clone(),
+                ),
+                dim=-1,
+            )
+
+        return self.K_params
+
+    def upddate_K_from_params(self):
+        self.K = torch.tensor(
+            [
+                [self.K_params[0], 0, self.K_params[2]],
+                [0, self.K_params[1], self.K_params[3]],
+                [0, 0, 1],
+            ]
+        )
+        self.K_pix = self.get_K_in_pixels()
+        self.K_und, self.K_pix_und, self.roi_und = self.get_K_und()
+        self.compute_undistortion_map()
+
+    def get_K_und(self, alpha=0, central_pp=False, same_fx_fy=True):
         K_pix_und = None
         K_und = None
         roi_und = None
@@ -181,14 +223,14 @@ class Intrinsics:
                 (w, h),
                 alpha,
                 (w, h),
-                centerPrincipalPoint=central_pp,
+                # centerPrincipalPoint=central_pp,
             )
 
-            # K_pix_und = np.array(self.K_pix)
-            # if central_pp:
-            #     K_pix_und[0, 2] = (w - 1) / 2
-            #     K_pix_und[1, 2] = (h - 1) / 2
-            #
+            K_pix_und = np.array(self.K_pix)
+            if central_pp:
+                K_pix_und[0, 2] = w / 2
+                K_pix_und[1, 2] = h / 2
+
             if same_fx_fy:
                 lens = (K_pix_und[0, 0] + K_pix_und[1, 1]) / 2
                 K_pix_und[0, 0] = lens
@@ -204,15 +246,9 @@ class Intrinsics:
         return K_und, K_pix_und, roi_und
 
     def undistort_image(self, img):
-        map1, map2 = cv2.initUndistortRectifyMap(
-            self.K_pix.numpy(),
-            self.D.numpy(),
-            None,
-            self.K_pix_und.numpy(),
-            (int(self.resolution[0]), int(self.resolution[1])),
-            cv2.CV_32FC1,
+        undistorted = cv2.remap(
+            img.numpy(), self.undist_map[0], self.undist_map[1], cv2.INTER_LINEAR
         )
-        undistorted = cv2.remap(img.numpy(), map1, map2, cv2.INTER_LINEAR)
         img_und = Image(torch.from_numpy(undistorted))
 
         # x,y,w,h = self.roi_und
@@ -305,10 +341,8 @@ class Camera_cv:
         if device is None:
             device = self.device
         K = self.intr.K_pix_und.clone()
-        self.pose.invert()
-        R = self.pose.rotation()
-        t = self.pose.location()
-        self.pose.invert()
+        R = self.pose.get_R_inv()
+        t = self.pose.get_t_inv()
         cam_cv = Camera_opencv(K, R, t, device, self.typ)
 
         return cam_cv
@@ -396,24 +430,25 @@ class Camera_cv:
 
     def sample_rand_pixs_in_mask(self, mask, n_pixs=None):
 
-        self.assert_image_shape(mask)
-        m = mask.transpose(0, 1)
-        grid = self.get_pixel_grid(device=mask.device)
-        pixels_idxs = grid[m > 0]
-        if not pixels_idxs.numel():
-            # return torch.empty((0, 2), dtype=torch.float32, device=self.device)
-            return None
-        pixels_idxs = torch.reshape(pixels_idxs, (-1, len(self.intr.resolution)))
+        with torch.no_grad():
+            self.assert_image_shape(mask)
+            m = mask.transpose(0, 1)
+            grid = self.get_pixel_grid(device=mask.device)
+            pixels_idxs = grid[m > 0]
+            if not pixels_idxs.numel():
+                # return torch.empty((0, 2), dtype=torch.float32, device=self.device)
+                return None
+            pixels_idxs = torch.reshape(pixels_idxs, (-1, len(self.intr.resolution)))
 
-        if n_pixs is None:
-            n_pixs = pixels_idxs.shape[0]
-            sampl_image_idxs = pixels_idxs
-        else:
-            perm = torch.randperm(pixels_idxs.shape[0])
-            n_pixs = min(n_pixs, len(perm))
-            sampl_image_idxs = pixels_idxs[perm][:n_pixs]
+            if n_pixs is None:
+                n_pixs = pixels_idxs.shape[0]
+                sampl_image_idxs = pixels_idxs
+            else:
+                perm = torch.randperm(pixels_idxs.shape[0])
+                n_pixs = min(n_pixs, len(perm))
+                sampl_image_idxs = pixels_idxs[perm][:n_pixs]
 
-        return sampl_image_idxs
+            return sampl_image_idxs
 
     def get_all_rays(self):
         grid = self.get_pixel_grid()
@@ -422,7 +457,7 @@ class Camera_cv:
 
     def pix2dir(self, pix):
         # pix = pix.to(self.device)*self.intr.unit_pixel_ratio() # pixels to units
-        pix = pix.clone().type(torch.float64)
+        pix = pix.clone().type(torch.float32)
         # pix = pix.clone()
         K_inv = torch.inverse(self.intr.K_pix_und).type(pix.dtype).to(pix.device)
 
@@ -524,6 +559,8 @@ class Camera_cv:
             return pixels, d
         else:
             return pixels
+
+    # def project_points_with_distortion(self, points, longtens=True):
 
     def test_pix2ray(self):
         rows = self.intr.resolution[0]

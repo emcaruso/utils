@@ -24,6 +24,7 @@ class Pose:
         euler: eul = eul(torch.zeros([3], dtype=torch.float32)),
         position=torch.zeros([3], dtype=torch.float32),
         T=None,
+        # scale=torch.ones([3], dtype=torch.float32),
         scale=torch.ones([1], dtype=torch.float32),
         units="meters",
         device="cpu",
@@ -31,7 +32,6 @@ class Pose:
         assert isinstance(euler, eul)
         assert torch.is_tensor(position)
 
-        self.scale = scale
         if T is not None:
             self.euler = euler
             R = R = T[..., :3, :3]
@@ -42,6 +42,7 @@ class Pose:
         else:
             self.euler = euler
             self.position = position
+        self.scale = scale.to(self.position.dtype)
 
         self.units = units
         self.device = device
@@ -137,12 +138,14 @@ class Pose:
     def to(self, device):
         self.euler = self.euler.to(device)
         self.position = self.position.to(device)
+        self.scale = self.scale.to(device)
         self.device = device
         return self
 
     def dtype(self, dtype):
         self.euler = self.euler.to(dtype)
         self.position = self.position.to(dtype)
+        self.scale = self.scale.to(dtype)
         return self
 
     def invert(self):

@@ -82,7 +82,9 @@ def get_blend_file(blend_dir):
 
 
 def blender_camera_transform(obj):
-    obj.rotation_euler[0] += math.pi
+    matrix_world = np.array(obj.matrix_world)
+    matrix_world[:, 1:3] = -matrix_world[:, 1:3]
+    obj.matrix_world = matrix_world.T
 
 
 def delete_collection(collection_name):
@@ -191,6 +193,7 @@ def collect_objects_in_collection(collection_name):
 
 
 def generate_camera_from_camcv(cam, name):
+
     cam.name = name
     camera_data = bpy.data.cameras.new(name=cam.name)
     camera_data.sensor_width = cam.intr.sensor_size[0] * 1000
@@ -218,10 +221,10 @@ def generate_camera_from_camcv(cam, name):
 
 
 def set_object_pose(obj, pose: Pose):
-    scale = copy.deepcopy(obj.scale)
+    print("SCALEEE", pose.scale)
     obj.rotation_mode = pose.euler.convention
-    obj.matrix_world = Matrix(pose.get_T().numpy())
-    obj.scale = scale
+    obj.matrix_world = Matrix(pose.get_T().detach().numpy())
+    obj.scale = np.ones(3) * pose.scale.detach().item()
     # obj.location = pose.location().numpy()
     # obj.rotation_euler = pose.euler.e.numpy()
 

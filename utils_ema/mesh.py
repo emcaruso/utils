@@ -1,8 +1,10 @@
 import torch
+import cv2
 import trimesh
 import numpy as np
 
-def read_mesh(path, device='cpu'):
+
+def read_mesh(path, device="cpu"):
     mesh_ = trimesh.load_mesh(str(path), process=False)
 
     # print(len(mesh_.visual.uv))
@@ -13,10 +15,11 @@ def read_mesh(path, device='cpu'):
     vertices = np.array(mesh_.vertices, dtype=np.float32)
     uv = np.array(mesh_.visual.uv, dtype=np.float32)
     indices = None
-    if hasattr(mesh_, 'faces'):
+    if hasattr(mesh_, "faces"):
         indices = np.array(mesh_.faces, dtype=np.int32)
 
     return Mesh(vertices=vertices, indices=indices, uv=uv, device=device)
+
 
 def write_mesh(path, mesh):
     path = Path(path)
@@ -27,14 +30,21 @@ def write_mesh(path, mesh):
     mesh_ = trimesh.Trimesh(vertices=vertices, faces=indices, process=False)
     mesh_.export(path)
 
+
 def find_edges(indices, remove_duplicates=True):
-    # Extract the three edges (in terms of vertex indices) for each face 
+    # Extract the three edges (in terms of vertex indices) for each face
     # edges_0 = [f0_e0, ..., fN_e0]
     # edges_1 = [f0_e1, ..., fN_e1]
     # edges_2 = [f0_e2, ..., fN_e2]
-    edges_0 = torch.index_select(indices, 1, torch.tensor([0,1], device=indices.device))
-    edges_1 = torch.index_select(indices, 1, torch.tensor([1,2], device=indices.device))
-    edges_2 = torch.index_select(indices, 1, torch.tensor([2,0], device=indices.device))
+    edges_0 = torch.index_select(
+        indices, 1, torch.tensor([0, 1], device=indices.device)
+    )
+    edges_1 = torch.index_select(
+        indices, 1, torch.tensor([1, 2], device=indices.device)
+    )
+    edges_2 = torch.index_select(
+        indices, 1, torch.tensor([2, 0], device=indices.device)
+    )
 
     # Merge the into one tensor so that the three edges of one face appear sequentially
     # edges = [f0_e0, f0_e1, f0_e2, ..., fN_e0, fN_e1, fN_e2]
@@ -46,6 +56,7 @@ def find_edges(indices, remove_duplicates=True):
 
     return edges
 
+
 def find_connected_faces(indices):
     edges = find_edges(indices, remove_duplicates=False)
 
@@ -53,25 +64,32 @@ def find_connected_faces(indices):
     edges, _ = torch.sort(edges, dim=1)
 
     # Now find edges that share the same vertices and make sure there are only manifold edges
-    _, inverse_indices, counts = torch.unique(edges, dim=0, sorted=False, return_inverse=True, return_counts=True)
+    _, inverse_indices, counts = torch.unique(
+        edges, dim=0, sorted=False, return_inverse=True, return_counts=True
+    )
     assert counts.max() == 2
 
     # We now create a tensor that contains corresponding faces.
     # If the faces with ids fi and fj share the same edge, the tensor contains them as
     # [..., [fi, fj], ...]
-    face_ids = torch.arange(indices.shape[0])               
-    face_ids = torch.repeat_interleave(face_ids, 3, dim=0) # Tensor with the face id for each edge
+    face_ids = torch.arange(indices.shape[0])
+    face_ids = torch.repeat_interleave(
+        face_ids, 3, dim=0
+    )  # Tensor with the face id for each edge
 
     face_correspondences = torch.zeros((counts.shape[0], 2), dtype=torch.int64)
     face_correspondences_indices = torch.zeros(counts.shape[0], dtype=torch.int64)
 
     # ei = edge index
     for ei, ei_unique in enumerate(list(inverse_indices.cpu().numpy())):
-        face_correspondences[ei_unique, face_correspondences_indices[ei_unique]] = face_ids[ei] 
+        face_correspondences[ei_unique, face_correspondences_indices[ei_unique]] = (
+            face_ids[ei]
+        )
         face_correspondences_indices[ei_unique] += 1
 
     return face_correspondences[counts.cpu() == 2].to(device=indices.device)
     # return face_correspondences[counts == 2].to(device=indices.device)
+
 
 def compute_laplacian_uniform(mesh):
     """
@@ -85,11 +103,14 @@ def compute_laplacian_uniform(mesh):
         Sparse FloatTensor of shape (V, V) where V = sum(V_n)
     """
 
-    # This code is adapted from from PyTorch3D 
+    # import ipdb
+    #
+    # ipdb.set_trace()
+    # This code is adapted from from PyTorch3D
     # (https://github.com/facebookresearch/pytorch3d/blob/88f5d790886b26efb9f370fb9e1ea2fa17079d19/pytorch3d/structures/meshes.py#L1128)
 
-    verts_packed = mesh.vertices # (sum(V_n), 3)
-    edges_packed = mesh.edges    # (sum(E_n), 2)
+    verts_packed = mesh.vertices  # (sum(V_n), 3)
+    edges_packed = mesh.edges  # (sum(E_n), 2)
     V = mesh.vertices.shape[0]
 
     e0, e1 = edges_packed.unbind(1)
@@ -124,8 +145,9 @@ def compute_laplacian_uniform(mesh):
 
     return L
 
+
 class Mesh:
-    """ Triangle mesh defined by an indexed vertex buffer.
+    """Triangle mesh defined by an indexed vertex buffer.
 
     Args:
         vertices (tensor): Vertex buffer (Vx3)
@@ -133,13 +155,33 @@ class Mesh:
         device (torch.device): Device where the mesh buffers are stored
     """
 
-    def __init__(self, vertices, indices, uv=None, device='cpu', units='meters'):
+    def __init__(self, vertices, indices, uv=None, device="cpu", units="meters"):
         self.device = device
         self.units = units
 
-        self.vertices = vertices.to(device, dtype=torch.float32) if torch.is_tensor(vertices) else torch.tensor(vertices, dtype=torch.float32, device=device)
-        self.indices = indices.to(device, dtype=torch.int64) if torch.is_tensor(indices) else torch.tensor(indices, dtype=torch.int64, device=device) if indices is not None else None
-        self.uv = uv.to(device, dtype=torch.float32) if torch.is_tensor(uv) else torch.tensor(uv, dtype=torch.float32, device=device) if uv is not None else None
+        self.vertices = (
+            vertices.to(device, dtype=torch.float32)
+            if torch.is_tensor(vertices)
+            else torch.tensor(vertices, dtype=torch.float32, device=device)
+        )
+        self.indices = (
+            indices.to(device, dtype=torch.int64)
+            if torch.is_tensor(indices)
+            else (
+                torch.tensor(indices, dtype=torch.int64, device=device)
+                if indices is not None
+                else None
+            )
+        )
+        self.uv = (
+            uv.to(device, dtype=torch.float32)
+            if torch.is_tensor(uv)
+            else (
+                torch.tensor(uv, dtype=torch.float32, device=device)
+                if uv is not None
+                else None
+            )
+        )
 
         if self.indices is not None:
             self.compute_normals()
@@ -148,9 +190,15 @@ class Mesh:
         self._connected_faces = None
         self._laplacian = None
 
+    def type(self, dtype):
+        self.vertices = self.vertices.to(dtype)
+        self.uv = self.uv.to(dtype)
+
     def to(self, device):
+        self.device = device
         self.vertices = self.vertices.to(device)
         self.indices = self.indices.to(device)
+        self.uv = self.uv.to(device)
 
         if self.indices is not None:
             self.compute_normals()
@@ -161,8 +209,6 @@ class Mesh:
 
         self.compute_connectivity()
 
-        self.device = device
-        
         return self
 
     def detach(self):
@@ -170,12 +216,18 @@ class Mesh:
         mesh.face_normals = self.face_normals.detach()
         mesh.vertex_normals = self.vertex_normals.detach()
         mesh._edges = self._edges.detach() if self._edges is not None else None
-        mesh._connected_faces = self._connected_faces.detach() if self._connected_faces is not None else None
-        mesh._laplacian = self._laplacian.detach() if self._laplacian is not None else None
+        mesh._connected_faces = (
+            self._connected_faces.detach()
+            if self._connected_faces is not None
+            else None
+        )
+        mesh._laplacian = (
+            self._laplacian.detach() if self._laplacian is not None else None
+        )
         return mesh
 
     def with_vertices(self, vertices):
-        """ Create a mesh with the same connectivity but with different vertex positions
+        """Create a mesh with the same connectivity but with different vertex positions
 
         Args:
             vertices (tensor): New vertex positions (Vx3)
@@ -217,29 +269,64 @@ class Mesh:
         a = self.vertices[self.indices][:, 0, :]
         b = self.vertices[self.indices][:, 1, :]
         c = self.vertices[self.indices][:, 2, :]
-        self.face_normals = torch.nn.functional.normalize(torch.cross(b - a, c - a), p=2, dim=-1) 
+        self.face_normals = torch.nn.functional.normalize(
+            torch.cross(b - a, c - a), p=2, dim=-1
+        )
 
         # Compute the vertex normals
         vertex_normals = torch.zeros_like(self.vertices)
-        vertex_normals = vertex_normals.index_add(0, self.indices[:, 0], self.face_normals)
-        vertex_normals = vertex_normals.index_add(0, self.indices[:, 1], self.face_normals)
-        vertex_normals = vertex_normals.index_add(0, self.indices[:, 2], self.face_normals)
-        self.vertex_normals = torch.nn.functional.normalize(vertex_normals, p=2, dim=-1) 
+        vertex_normals = vertex_normals.index_add(
+            0, self.indices[:, 0], self.face_normals
+        )
+        vertex_normals = vertex_normals.index_add(
+            0, self.indices[:, 1], self.face_normals
+        )
+        vertex_normals = vertex_normals.index_add(
+            0, self.indices[:, 2], self.face_normals
+        )
+        self.vertex_normals = torch.nn.functional.normalize(vertex_normals, p=2, dim=-1)
 
     def get_transformed_vertices(self, pose):
-        return torch.matmul(self.vertices, pose.rotation().t())+pose.location()
+        return torch.matmul(self.vertices, pose.rotation().t()) + pose.location()
 
     def transform_vertices(self, pose):
         self.vertices = self.get_transformed_vertices(pose)
 
-    def uniform_scale(self, s, units:str = "scaled"):
+    def uniform_scale(self, s, units: str = "scaled"):
         self.vertices *= s
         self.units = units
+
+    def get_texture_mask(self, res, device="cpu"):
+        texture_resolution = (res, res)
+        # get mask texture of the uv map from mesh
+        texture = torch.zeros(
+            texture_resolution, dtype=torch.float32, device=self.device
+        )
+
+        uv_coords = self.uv  # (M, 2) array of UV coordinates (in [0, 1] range)
+        faces = self.indices  # (N, 3) array of face indices
+
+        # Initialize a blank mask with shape (height, width)
+        height, width = texture_resolution
+        mask = np.zeros((height, width), dtype=np.uint8)
+
+        # Scale UV coordinates to the texture resolution (convert from [0, 1] to [0, width] and [0, height])
+        uv_coords = uv_coords * torch.tensor([width, height])
+
+        # Loop over each face and rasterize the triangle in the UV space
+        for face in faces:
+            # Get the UV coordinates of the triangle's vertices
+            uv_triangle = uv_coords[face].type(torch.int32)
+
+            # Fill the triangle in the mask (using OpenCV's fillPoly)
+            cv2.fillPoly(mask, [uv_triangle.numpy()], 1)
+
+        return torch.tensor(mask, dtype=torch.bool, device=device)
 
 
 class AABB:
     def __init__(self, points):
-        """ Construct the axis-aligned bounding box from a set of points.
+        """Construct the axis-aligned bounding box from a set of points.
 
         Args:
             points (tensor): Set of points (N x 3).
@@ -268,13 +355,15 @@ class AABB:
 
     @property
     def corners(self):
-        return np.array([
-            [self.min_p[0], self.min_p[1], self.min_p[2]],
-            [self.max_p[0], self.min_p[1], self.min_p[2]],
-            [self.max_p[0], self.max_p[1], self.min_p[2]],
-            [self.min_p[0], self.max_p[1], self.min_p[2]],
-            [self.min_p[0], self.min_p[1], self.max_p[2]],
-            [self.max_p[0], self.min_p[1], self.max_p[2]],
-            [self.max_p[0], self.max_p[1], self.max_p[2]],
-            [self.min_p[0], self.max_p[1], self.max_p[2]]
-        ])
+        return np.array(
+            [
+                [self.min_p[0], self.min_p[1], self.min_p[2]],
+                [self.max_p[0], self.min_p[1], self.min_p[2]],
+                [self.max_p[0], self.max_p[1], self.min_p[2]],
+                [self.min_p[0], self.max_p[1], self.min_p[2]],
+                [self.min_p[0], self.min_p[1], self.max_p[2]],
+                [self.max_p[0], self.min_p[1], self.max_p[2]],
+                [self.max_p[0], self.max_p[1], self.max_p[2]],
+                [self.min_p[0], self.max_p[1], self.max_p[2]],
+            ]
+        )
