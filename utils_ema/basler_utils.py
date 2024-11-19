@@ -1,4 +1,6 @@
 from pypylon import pylon
+import numpy as np
+import torch
 from pypylon import genicam
 import sys
 import cv2
@@ -20,14 +22,32 @@ class frame_extractor:
         "a2A4504-5gcBAS": {"sensor_width_mm": 12.34, "sensor_height_mm": 12.34},
     }
 
-    def __init__(self, min_exp_time=20, max_exp_time=200000, sRGB=True, gray=False):
+    def __init__(
+        self,
+        sRGB=True,
+        pixel_format="BayerRG8",
+        exposure_time=20000,
+        signal_period=100000,
+        crop=False,
+    ):
 
         self.load_devices()
+
         self.sRGB = "sRgb" if sRGB else "Off"
-        self.pixel_format = "Mono8" if gray else "RGB8"
+        self.pixel_format = pixel_format
         self.min_exp_time = 20
         self.max_exp_time = 200000
+        self.exposure_time = exposure_time
+        self.signal_period = signal_period
+        self.crop = crop
         self.count_max = 5
+        self.converter = None
+        self.init()
+
+    def init(self):
+        if self.pixel_format == "BayerRG8":
+            self.converter = pylon.ImageFormatConverter()
+            self.converter.OutputPixelFormat = pylon.PixelType_RGB8packed
 
     def load_devices(self):
         self.tlf = pylon.TlFactory.GetInstance()
@@ -94,8 +114,8 @@ class frame_extractor:
     def start_cams(
         self,
         num_cameras: int = None,
-        signal_period: int = 100000,
-        exposure_time: int = 20000,
+        signal_period: int = None,
+        exposure_time: int = None,
     ):
 
         if self.cam_array.IsGrabbing():
@@ -103,17 +123,24 @@ class frame_extractor:
 
         self.last_cams_params = (num_cameras, signal_period, exposure_time)
 
+        # get signal_period and exposure_time
+        if signal_period is None:
+            signal_period = self.signal_period
+        if exposure_time is None:
+            exposure_time = self.exposure_time
+
         self.cam_array.Open()
         for idx, cam in enumerate(self.cam_array):
             camera_serial = cam.DeviceInfo.GetSerialNumber()
             print(f"set context {idx} for camera {camera_serial}")
             cam.SetCameraContext(idx)
-            cam.BslColorSpace.Value = self.sRGB
-            cam.PixelFormat.Value = self.pixel_format
 
         # set exposure time
         for camera in self.cam_array:
+            camera.BslColorSpace.Value = self.sRGB
+            camera.PixelFormat.Value = self.pixel_format
             self.change_exposure(camera, exposure_time)
+            self.set_crop(camera)
 
         # set hardware trigger
         # for camera in self.cam_array:
@@ -125,6 +152,21 @@ class frame_extractor:
         # self.cam_array.StartGrabbing(pylon.GrabStrategy_UpcomingImage)  # slow
 
         return True
+
+    def set_crop(self, camera):
+        if self.crop:
+            camera.BslMultipleROIRowsEnable.Value = True
+            camera.BslMultipleROIColumnsEnable.Value = True
+            self.crop_offs_x = camera.BslMultipleROIRowOffset.Value
+            self.crop_offs_y = camera.BslMultipleROIColumnOffset.Value
+            self.crop_size_x = camera.BslMultipleROIRowSize.Value
+            self.crop_size_y = camera.BslMultipleROIColumnSize.Value
+        else:
+            camera.BslMultipleROIRowsEnable.Value = False
+            camera.BslMultipleROIColumnsEnable.Value = False
+            camera.Height.Value = camera.SensorHeight.Value
+            camera.Width.Value = camera.SensorWidth.Value
+        #
 
     def get_exposure(self, camera=None):
         if camera is None:
@@ -234,11 +276,31 @@ class frame_extractor:
 
             # Image grabbed successfully?
             if grabResult.GrabSucceeded():
-                # Access the image data.
                 cam_id = grabResult.GetCameraContext()
-                img = grabResult.GetArray()
+                # Access the image data.
+                if self.converter is not None:
+                    img_ = self.converter.Convert(grabResult).GetArray()
+
+                else:
+                    img_ = grabResult.GetArray()
                 grabResult.Release()
-                images[cam_id] = Image(img=img, dtype=dtype)
+                if self.crop:
+                    img = np.zeros(
+                        (
+                            self.cam_array[cam_id].SensorHeight.Value,
+                            self.cam_array[cam_id].SensorWidth.Value,
+                            img_.shape[2],
+                        ),
+                        dtype=np.uint8,
+                    )
+                    img[
+                        self.crop_offs_x : self.crop_offs_x + self.crop_size_x,
+                        self.crop_offs_y : self.crop_offs_y + self.crop_size_y,
+                        :,
+                    ] = img_
+                else:
+                    img = img_
+                images[cam_id] = Image(img=torch.from_numpy(img), dtype=dtype)
                 if not any(im is None for im in images):
                     break
             else:
@@ -246,7 +308,7 @@ class frame_extractor:
 
             if count > self.count_max:
                 self.restart_cams()
-                print("Falied sync, restart")
+                print("Failed sync, restart")
                 count = 0
                 # break
 

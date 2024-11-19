@@ -1,4 +1,5 @@
 from logging import raiseExceptions
+import time
 import cv2
 import torch
 import os, sys
@@ -9,6 +10,7 @@ from PIL import Image, ImageFilter
 import torchvision.transforms as T
 from skimage import feature, filters
 from scipy.ndimage import distance_transform_edt
+from scipy.ndimage import label, center_of_mass
 from pathlib import Path
 
 try:
@@ -75,6 +77,9 @@ class Image:
 
         self.dtype = self.img.dtype
         self.set_type(dtype)
+
+    def __del__(self):
+        del self.img
 
     @staticmethod
     def from_img(img):
@@ -155,24 +160,26 @@ class Image:
         rgb_tensor = rgb_tensor.type(dtype)
         return Image.from_img(rgb_tensor)
 
-    def resize(self, resolution=None, resolution_drop=None):
+    def resize(self, resolution=None, resolution_drop=None, interp=cv2.INTER_LINEAR):
         assert (resolution is None) ^ (resolution_drop is None)
         if resolution is not None:
-            self.img = torch.from_numpy(self.resized(resolution)).to(self.device)
-        elif resolution_drop is not None:
-            r = self.resolution() * resolution_drop
-            self.img = torch.from_numpy(self.resized(r.type(torch.LongTensor))).to(
+            self.img = torch.from_numpy(self.resized(resolution, interp=interp)).to(
                 self.device
             )
+        elif resolution_drop is not None:
+            r = self.resolution() * resolution_drop
+            self.img = torch.from_numpy(
+                self.resized(r.type(torch.LongTensor), interp=interp)
+            ).to(self.device)
 
     def resolution(self):
         return torch.LongTensor([self.img.shape[0], self.img.shape[1]])
 
-    def resized(self, resolution):
+    def resized(self, resolution, interp=cv2.INTER_LINEAR):
         resized = cv2.resize(
             self.numpy(),
             (int(resolution[1]), int(resolution[0])),
-            interpolation=cv2.INTER_LINEAR,
+            interpolation=interp,
         )
         return resized
 
@@ -206,15 +213,16 @@ class Image:
         except:
             cv2.namedWindow(img_name, cv2.WINDOW_NORMAL)  # Create a named window
             cv2.resizeWindow(img_name, int(m.width / 2), int(m.height / 2))
-        cv2.imshow(img_name, self.numpy())
+        cv2.imshow(img_name, cv2.cvtColor(self.numpy(), cv2.COLOR_BGR2RGB))
         key = cv2.waitKey(wk)
         return key
 
     def save(self, img_path, verbose=True):
+        img_path = str(img_path)
         Path(img_path).parent.mkdir(parents=True, exist_ok=True)
 
         img = self.to("cpu").type(torch.uint8).numpy()
-        cv2.imwrite(img_path, img)
+        cv2.imwrite(img_path, cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
         if verbose:
             print("saved image in: ", img_path)
 
@@ -237,6 +245,129 @@ class Image:
         dist = torch.from_numpy(dist).type(torch.float32)
         dist = dist**exp
         return Image.from_img(dist)
+
+    def patchify(self, patch_size, stride_factor=0.5, device="cpu"):
+
+        stride = int(patch_size * stride_factor)
+
+        channels = self.img.shape[-1]
+        img = self.img.to(device).permute(2, 0, 1).unsqueeze(0)
+        patches = img.unfold(3, patch_size, stride).unfold(2, patch_size, stride)
+        patches = patches.contiguous().view(channels, -1, patch_size, patch_size)
+        patches = patches.permute(1, 0, 3, 2)
+        patches = patches.permute(0, 2, 3, 1)
+        # img = self.patches_to_image(
+        #     patches, stride_factor, self.img.shape[1], self.img.shape[0]
+        # )
+        return patches
+
+    # @staticmethod
+    # def patches_to_image(
+    #     patches, stride_factor, res_x, res_y, max_interp=False, device="cpu"
+    # ):
+    #     with torch.no_grad():
+    #         p = patches.to(device)
+    #         patch_size = p.shape[-2]
+    #         img = torch.zeros((res_x, res_y, p.shape[-1])).to(device)
+    #         stride = int(p.shape[-3] * stride_factor)
+    #
+    #         if max_interp:
+    #             op = lambda x, y: torch.maximum(x, y)
+    #             # op = lambda x, y: torch.minimum(x, y)
+    #         else:
+    #             op = lambda x, y: y
+    #
+    #         for i, patch in enumerate(p):
+    #             y = (i * stride) % (res_x - stride)
+    #             x = (i * stride) // (res_x - stride) * stride
+    #             try:
+    #                 img[x : x + patch_size, y : y + patch_size, :] = op(
+    #                     img[x : x + patch_size, y : y + patch_size, :], patch
+    #                 )
+    #             except:
+    #                 pass
+    #
+    #     return Image(img.cpu())
+
+    @staticmethod
+    def patches_to_image(
+        patches, stride_factor, res_x, res_y, max_interp=False, device="cpu"
+    ):
+        with torch.no_grad():
+            # Move patches to the specified device
+            patches = patches.to(device)
+
+            # Extract dimensions
+            batch, patch_size, _, channels = patches.shape[-4:]
+            stride = int(patch_size * stride_factor)
+
+            # Calculate number of patches along each axis
+            num_patches_x = (res_x - patch_size) // stride + 1
+            num_patches_y = (res_y - patch_size) // stride + 1
+
+            # Compute placement indices for all patches
+            idx_x = torch.arange(num_patches_x, device=device) * stride
+            idx_y = torch.arange(num_patches_y, device=device) * stride
+            grid_x, grid_y = torch.meshgrid(idx_x, idx_y, indexing="ij")
+
+            # Flatten indices
+            grid_x = grid_x.flatten()  # Shape: [batch]
+            grid_y = grid_y.flatten()  # Shape: [batch]
+
+            # Create empty tensors for image and overlaps
+            img = torch.zeros((res_x, res_y, channels), device=device)
+            count = torch.zeros((res_x, res_y, 1), device=device)
+
+            # Compute offsets for each patch
+            offsets_x = grid_x.unsqueeze(1) + torch.arange(
+                patch_size, device=device
+            ).unsqueeze(
+                0
+            )  # [batch, patch_size]
+            offsets_y = grid_y.unsqueeze(1) + torch.arange(
+                patch_size, device=device
+            ).unsqueeze(
+                0
+            )  # [batch, patch_size]
+            offsets_x = offsets_x.unsqueeze(2).expand(
+                -1, -1, patch_size
+            )  # [batch, patch_size, patch_size]
+            offsets_y = offsets_y.unsqueeze(1).expand(
+                -1, patch_size, -1
+            )  # [batch, patch_size, patch_size]
+
+            # Flatten offsets
+            offsets_x = offsets_x.flatten()
+            offsets_y = offsets_y.flatten()
+
+            # Flatten patches
+            flat_patches = patches.view(-1, channels)
+
+            # Use scatter_add to aggregate patches
+            linear_indices = offsets_x * res_y + offsets_y  # Compute flat index
+            img_flat = torch.zeros((res_x * res_y, channels), device=device)
+            count_flat = torch.zeros((res_x * res_y, 1), device=device)
+
+            img_flat.scatter_add_(
+                0, linear_indices.unsqueeze(-1).expand_as(flat_patches), flat_patches
+            )
+            count_flat.scatter_add_(
+                0, linear_indices.unsqueeze(-1), torch.ones_like(flat_patches[..., :1])
+            )
+
+            # Reshape back to 2D
+            img = img_flat.view(res_x, res_y, channels)
+            count = count_flat.view(res_x, res_y, 1)
+
+            # Normalize by overlap count
+            img = img / count.clamp(min=1)
+
+            # # Apply max interpolation if required
+            # if max_interp:
+            #     max_img = torch.zeros_like(img)
+            #     max_img.scatter_add_(0, linear_indices, torch.max())
+
+            return img
 
     # sobel
     def sobel_diff(self, kernel_size=3):
@@ -314,6 +445,111 @@ class Image:
         # sobel_img.show(wk=1)
 
         return sobel_img
+
+    def inpaint(self, mask=None):
+        if mask is None:
+            mask = (self.img.sum(dim=-1) == 0).unsqueeze(-1)
+            # mask = self.img == 0
+
+        # inpaint with cv2
+        img = self.type(torch.uint8).numpy()
+        mask = mask.type(torch.uint8).numpy()
+        import ipdb
+
+        ipdb.set_trace()
+        # img = cv2.inpaint(self.numpy(), mask.numpy(), 3, cv2.INPAINT_TELEA)
+        # img = cv2.inpaint(img, mask, 3, cv2.INPAINT_TELEA)
+        img = cv2.inpaint(img, mask, 3, cv2.INPAINT_NS)
+        return Image(img=img)
+
+    def fill_black_pixels(
+        self, nerby_nonzero_pixels=5, reverse=False, device=None, kernel_size=3
+    ):
+        if device is None:
+            device = self.img.device
+
+        tensor = self.img.to(device)
+        # unsqueeze tensor depending on the dimensions
+        if tensor.ndim == 2:
+            tensor = tensor.unsqueeze(0).unsqueeze(0).float()
+        elif tensor.ndim == 3:
+            tensor = tensor.unsqueeze(0).float()
+
+        # permute
+        tensor = tensor.permute(0, 3, 1, 2)
+
+        # max pool on tensor
+        tensor_sum = F.avg_pool2d(
+            tensor,
+            kernel_size=kernel_size,
+            stride=(1),
+            padding=int(kernel_size / 2),
+            divisor_override=1,
+        )
+
+        # Define a kernel to check surrounding pixels
+        kernel = torch.ones(
+            (1, 1, kernel_size, kernel_size), dtype=torch.float32, device=tensor.device
+        )
+        kernel = kernel.repeat(tensor.shape[1], 1, 1, 1)  # 1 filter for 3 channels
+
+        # Perform 2D convolution to count non-zero neighbors
+        neighbor_count = F.conv2d(
+            (tensor > 0).float(),
+            kernel,
+            padding=int(kernel_size / 2),
+            groups=tensor.shape[1],
+        )
+
+        filled_tensor = tensor.clone()
+        if reverse:
+            condition = (neighbor_count <= 9 - nerby_nonzero_pixels) & (tensor != 0)
+            filled_tensor[condition] = 0
+        else:
+            condition = (neighbor_count >= nerby_nonzero_pixels) & (tensor == 0)
+            filled_tensor[condition] = tensor_sum[condition] / neighbor_count[condition]
+
+        # Fill the black pixels based on the condition
+
+        # permute back
+        filled_tensor = filled_tensor.permute(0, 2, 3, 1).squeeze(0)
+
+        return Image(filled_tensor)
+
+    def filter_custom(self, kernel: torch.Tensor) -> torch.Tensor:
+        """
+        Apply a custom filter to an image using PyTorch's conv2d function.
+
+        Parameters:
+        image (torch.Tensor): Input image tensor of shape (C, H, W) or (H, W).
+        kernel (torch.Tensor): 2D filter kernel tensor of shape (kH, kW).
+
+        Returns:
+        torch.Tensor: Filtered image tensor.
+        """
+        image = self.img
+        if image.ndim == 2:  # If grayscale image, add channel dimension
+            image = image.unsqueeze(0).unsqueeze(0)  # (H, W) -> (1, 1, H, W)
+        elif image.ndim == 3:  # If RGB image, add batch dimension
+            image = image.unsqueeze(0)  # (C, H, W) -> (1, H, W, C)
+            image = image.permute(0, 3, 1, 2)  # (1, H, W, C) -> (1, C, H, W)
+
+        # Convert kernel to match PyTorch's expected format for conv2d
+        kernel = kernel.unsqueeze(0).unsqueeze(0)  # (kH, kW) -> (1, 1, kH, kW)
+        kernel = kernel.repeat(image.shape[1], 1, 1, 1)  # 1 filter for 3 channels
+
+        # Apply convolution
+        # 1 filter for 3 channels
+        filtered_image = F.conv2d(image, kernel, padding=1, groups=image.shape[1])
+
+        # Remove batch and channel dimensions if necessary
+        filtered_image = filtered_image.squeeze(0)
+        filtered_image = filtered_image.permute(1, 2, 0)
+        return filtered_image
+
+    def prewitt(self):
+        img_new = torch.from_numpy(filters.prewitt(self.gray().numpy()))
+        return Image.from_img(img_new)
 
     def sobel(self):
         # print(self.gray().numpy().shape)
@@ -439,6 +675,31 @@ class Image:
             # cv2.circle(img, (100,100), radius, color, thickness)
         return Image(img)
 
+    def get_sharpen_image(self, sharpness_factor: float) -> np.ndarray:
+        """
+        Sharpens an image with a given sharpness factor.
+
+        Parameters:
+        - image: np.ndarray, the input image to be sharpened.
+        - sharpness_factor: float, the level of sharpness (1.0 = no change, > 1.0 = sharper).
+
+        Returns:
+        - np.ndarray: The sharpened image.
+        """
+        # Sharpening kernel
+        kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
+        img = self.numpy()
+
+        # Apply the sharpening filter
+        sharpened_image = cv2.filter2D(img, -1, kernel)
+
+        # Blend the original and sharpened images based on sharpness_factor
+        output_image = cv2.addWeighted(
+            sharpened_image, sharpness_factor, img, 1 - sharpness_factor, 0
+        )
+
+        return Image(output_image)
+
     def show_points(self, coords=[], method="cv2", wk=1, name="unk"):
         if method == "plt":
             plt.imshow(self.numpy().astype(np.uint8))  # Cast to uint8 for image display
@@ -491,7 +752,7 @@ class Image:
                     int(((i % 2) == 1) * (m.width / 2)),
                     int((i > 1) * (m.height / 2)),
                 )
-            cv2.imshow(winname, img)
+            cv2.imshow(winname, cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
         key = cv2.waitKey(wk)
         return key
 
@@ -503,3 +764,82 @@ class Image:
         new_img = image_1.float() * w1 + image_2.float() * w2
         new_image = Image.from_img(new_img)
         return new_image
+
+    def is_mask(self):
+        is_bool = self.dtype == torch.bool
+        single_ch = len(self.img.shape) or self.img.shape[-1] == 1
+        return is_bool and single_ch
+
+    def process_clusters(self):
+        """
+        Process a binary mask to find clusters of contiguous pixels, their centroids,
+        and create a multi-mask where each cluster is a separate channel.
+
+        Parameters:
+            mask: numpy array of shape (H, W) containing a binary mask where
+                1 represents the pixels of interest (clusters), and 0 represents the background.
+
+        Returns:
+            num_clusters: The number of clusters found in the mask.
+            centroids: A list of (x, y) tuples representing the centroid of each cluster.
+            multi_mask: A numpy array of shape (H, W, num_clusters) where each channel represents a separate mask.
+        """
+
+        # Step 1: Label the clusters (connected components)
+        # struct = torch.ones((3,3), dtype=self.img.dtype)
+        # labeled_mask, num_clusters = label(
+        #     self.img.cpu().numpy(), structure=struct.cpu().numpy()
+        # )
+        labeled_mask, num_clusters = label(self.img.cpu().numpy())
+
+        # Step 2: Compute the centroid of each cluster
+        centroids = center_of_mass(
+            self.img, labeled_mask, np.arange(1, num_clusters + 1)
+        )
+
+        # Step 3: Create a multi-mask where each channel is a separate cluster
+        height, width, ch = self.img.shape
+        multi_mask = np.zeros((height, width, num_clusters), dtype=np.uint8)
+
+        for cluster_id in range(1, num_clusters + 1):
+            # Create a binary mask for the current cluster
+            cluster_mask = (labeled_mask == cluster_id).astype(np.uint8)
+            # Store it as a separate channel in the multi-mask
+            multi_mask[:, :, cluster_id - 1] = cluster_mask.squeeze()
+
+        return num_clusters, centroids, multi_mask
+
+    @staticmethod
+    def get_multimask_with_colormap(img, colormap_name="tab20"):
+        """
+        Visualizes a multi-mask by assigning colors from a matplotlib colormap to each mask (cluster)
+        and displaying the result using cv2.
+
+        Parameters:
+            multi_mask: numpy array of shape (H, W, num_clusters), where each channel is a separate binary mask.
+            colormap_name: Name of the matplotlib colormap to use for coloring the clusters.
+        """
+        height, width, num_clusters = img.shape
+
+        # Step 1: Create an RGB image to store the result
+        colored_image = np.zeros((height, width, 3), dtype=np.uint8)
+
+        # Step 2: Get a colormap from matplotlib
+        colormap = plt.get_cmap(colormap_name, num_clusters)
+
+        # Step 3: Assign a distinct color to each cluster using the colormap
+        for cluster_idx in range(num_clusters):
+            # Get the color from the colormap (returns values between 0 and 1, so scale to 0-255)
+            color = np.array(colormap(cluster_idx)[:3]) * 255
+            color = color.astype(np.uint8)
+
+            # Get the mask for the current cluster
+            cluster_mask = img[:, :, cluster_idx]
+
+            # Apply the color to the corresponding pixels in the colored image
+            colored_image[cluster_mask == 1] = color
+
+        return Image(colored_image)
+        # # Step 4: Display the image using OpenCV
+        # cv2.imshow("Multi-mask with colormap", colored_image)
+        # cv2.waitKey(0)  # Wait for a key press to close the window

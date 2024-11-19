@@ -21,7 +21,25 @@ class Texture(Image):
         texture.set_texture_vals(uvs, colors)
         return texture
 
+    @classmethod
+    def init_from_img(cls, img):
+        texture = cls(img.shape[0], img.shape[-1])
+        texture.img = img
+        return texture
+
+    @classmethod
+    def init_from_path(cls, path):
+        img = Image(path=path)
+        return cls.init_from_img(img.img)
+
     def set_texture_vals(self, uvs, colors):
         # convert uvs to pixel coordinates
         pixels = (uvs * (self.res - 1)).long()
         self.img[pixels[:, 1], pixels[:, 0], :] = colors
+        self.img = self.img.flip(0)
+
+    def save(self, path):
+        super().save(path)
+
+    def load(self, path):
+        super().__init__(path=path)

@@ -50,6 +50,7 @@ class Object:
         return new_obj
 
     def to(self, device):
+
         self.device = device
         if self.mesh is not None and self.mesh.device != device:
             self.mesh = self.mesh.to(device)

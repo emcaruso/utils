@@ -272,6 +272,7 @@ class Renderer:
         gbuffers = Renderer.diffrast(
             camera, obj, channels=channels, with_antialiasing=with_antialiasing
         )
+        # Image(gbuffers["uv"][:, :, 0]).show()
 
         if no_contour:
             gbuffers["mask"][0, :] = 0

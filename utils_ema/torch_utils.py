@@ -1,4 +1,5 @@
 import torch
+import gc
 import numpy as np
 import os
 import random
@@ -64,10 +65,9 @@ def set_seed(seed: int = 42) -> None:
     random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
-    # When running on the CuDNN backend, two further options must be set
+    torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
-    # Set a fixed value for the hash seed
     os.environ["PYTHONHASHSEED"] = str(seed)
     print(f"Random seed set as {seed}")
 
@@ -238,3 +238,57 @@ class CustomSharp(torch.nn.Module):
     def forward(self, predictions, targets):
         # W = (targets.mean(-1)>0.7).unsqueeze(-1)
         return self.crit(predictions, targets)
+
+
+class DiceLoss(torch.nn.Module):
+    def __init__(self, smooth=1e-8):
+        super(DiceLoss, self).__init__()
+        self.smooth = smooth
+
+    def forward(self, predicted, target):
+        # Flatten the predictions and targets
+        predicted_flat = predicted.flatten()
+        target_flat = target.flatten()
+
+        # Intersection and Union
+        intersection = torch.sum(predicted_flat * target_flat)
+        union = torch.sum(predicted_flat) + torch.sum(target_flat)
+
+        # Dice Coefficient
+        dice_coefficient = (2.0 * intersection + self.smooth) / (union + self.smooth)
+
+        # Dice Loss
+        dice_loss = 1.0 - dice_coefficient
+
+        return dice_loss
+
+
+def list_named_cuda_tensors():
+    scope = globals()  # Change to locals() if in a function
+    tensor_map = {
+        id(tensor): name for name, tensor in scope.items() if torch.is_tensor(tensor)
+    }
+
+    for obj in gc.get_objects():
+        if torch.is_tensor(obj) and obj.is_cuda:
+            var_name = tensor_map.get(id(obj), "Unknown")
+            print(
+                f"Variable: {var_name} | Size: {obj.size()} | Dtype: {obj.dtype} | Device: {obj.device}"
+            )
+
+
+def clear_cuda_tensors():
+    # Manually delete variables in global and local scopes
+    for obj in list(globals().values()):
+        if torch.is_tensor(obj) and obj.is_cuda:
+            del obj
+
+    for obj in list(locals().values()):
+        if torch.is_tensor(obj) and obj.is_cuda:
+            del obj
+
+    # Use garbage collector to free memory of unreferenced tensors
+    gc.collect()
+
+    # Empty the PyTorch CUDA cache
+    torch.cuda.empty_cache()
