@@ -14,6 +14,8 @@ import xmltodict
 
 class MitsubaScene:
 
+    mitsuba_blender_ratio_intensity = 4 * np.pi
+
     def __init__(self, xml_path, max_depth=None, rr_depth=None):
         self.xml_path = xml_path
         self.xml_dir = os.path.abspath(os.path.dirname(xml_path))
@@ -208,6 +210,7 @@ class MitsubaScene:
             if self.replace_dict is not None:
                 mdk = list(main_dict.keys())
                 for k, v in self.replace_dict.items():
+                    print(k, v)
                     main_dict[k] = OmegaConf.to_container(v)
 
         with open(self.xml_path, "r") as file:
@@ -296,44 +299,67 @@ class MitsubaScene:
     def get_light(self, light_idx):
         return self.scene.emitters()[light_idx]
 
-    def get_pointlight_idxs_on(self):
-        c = 0
-        idxs = []
-        for param in self.parameters:
-            if param[0].split(".")[-2] == "intensity":
-                intensity = self.parameters[param[0]]
-                if dr.any(intensity > 0)[0]:
-                    idxs.append(c)
-                c += 1
-        return idxs
+    def param_is_light_intensity(self, param):
+        return param[0].split(".")[-2] == "intensity"
 
-    def get_pointlight_intensity_from_idx(self, pointlight_idx):
+    def get_intensity_colors_from_intensity_parameters(self):
+        params_list = []
+        for param in self.parameters:
+            if self.param_is_light_intensity(param):
+                intensity_mits = param[1].torch()
+                max_val = intensity_mits.max()
+                intensity = max_val * self.mitsuba_blender_ratio_intensity
+                color = intensity_mits / max_val
+                params_list.append({"color": color, "intensity": intensity})
+        return params_list
+
+    # def get_pointlight_idxs_on(self):
+    #     c = 0
+    #     idxs = []
+    #     for param in self.parameters:
+    #         if self.param_is_light_intensity(param):
+    #             intensity = self.parameters[param[0]]
+    #             if dr.any(intensity > 0)[0]:
+    #                 idxs.append(c)
+    #             c += 1
+    #     return idxs
+    #
+    # def get_pointlight_intensity_from_idx(self, pointlight_idx):
+    #     name = self.get_pointlight_name_from_idx(pointlight_idx)
+    #     return self.parameters[name + ".intensity.value"]
+
+    def get_pointlight_name_from_idx(self, pointlight_idx):
         c = 0
         for param in self.parameters:
-            if param[0].split(".")[-2] == "intensity":
+            if self.param_is_light_intensity(param):
                 if c == pointlight_idx:
-                    return self.parameters[param[0]]
+                    return param[0].split(".")[0]
                 c += 1
-        # self.parameters.update()
 
-    def set_pointlight_intensity_from_idx(self, pointlight_idx, intensity):
+    def set_pointlight_intensity_from_idx(self, pointlight_idx, light):
         c = 0
+        intensity = (
+            light.intensity * light.color
+        ) / self.mitsuba_blender_ratio_intensity
         for param in self.parameters:
-            if param[0].split(".")[-2] == "intensity":
+            if self.param_is_light_intensity(param):
                 if c == pointlight_idx:
-                    self.parameters[param[0]] = intensity * 100
+                    self.parameters[param[0]] = self.parameters[param[0]].__class__(
+                        intensity.tolist()
+                    )
+                    break
                 c += 1
         # self.parameters.update()
 
-    def set_pointlight_intensity(self, obj_name, intensity):
-        if self.parameters is None:
-            raise ValueError("Parameters not initialized (traverse mi scene)")
-        if torch.is_tensor(intensity):
-            intensity = intensity.numpy()
-        assert len(intensity) == 3
-        intensity[[0, 2]] = intensity[[2, 0]]  # rgb to bgr
-        self.parameters[obj_name + ".intensity.value"] = intensity
-        # self.parameters.update()
+    # def set_pointlight_intensity(self, obj_name, intensity):
+    #     if self.parameters is None:
+    #         raise ValueError("Parameters not initialized (traverse mi scene)")
+    #     if torch.is_tensor(intensity):
+    #         intensity = intensity.numpy()
+    #     assert len(intensity) == 3
+    #     intensity[[0, 2]] = intensity[[2, 0]]  # rgb to bgr
+    #     self.parameters[obj_name + ".intensity.value"] = intensity
+    #     # self.parameters.update()
 
     def translate_obj(self, obj_name, offset):
 

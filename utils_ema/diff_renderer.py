@@ -2,6 +2,7 @@ import numpy as np
 import nvdiffrast.torch as dr
 import torch
 from utils_ema.image import Image
+from utils_ema.texture import Texture
 
 # from utils_ema.pbr_shader import PBR_Shader
 from utils_ema.torch_utils import get_device
@@ -294,3 +295,19 @@ class Renderer:
             torch.cuda.empty_cache()
 
         return gbuffers, pixs, dirs
+
+    @classmethod
+    def render_texture(cls, camera, obj, texture, with_antialiasing=False):
+        gbuffers, pixs, _ = cls.get_buffers_pixels_dirs(
+            camera, obj, channels=["mask", "uv"], with_antialiasing=with_antialiasing
+        )
+        uv = gbuffers["uv"]
+        image = torch.zeros(list(uv.shape[:-1]) + [3], device=uv.device)
+
+        texture = texture.to(uv.device)
+        texture.img = texture.img.flip(0)
+        res = texture.res
+
+        pix_tex = (uv[pixs[:, 1], pixs[:, 0], :] * res).long()
+        image[pixs[:, 1], pixs[:, 0], :] = texture.img[pix_tex[:, 1], pix_tex[:, 0], :]
+        return Image(image), pixs

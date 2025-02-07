@@ -12,11 +12,15 @@ from skimage import feature, filters
 from scipy.ndimage import distance_transform_edt
 from scipy.ndimage import label, center_of_mass
 from pathlib import Path
+import multiprocessing as mp
+
 
 try:
-    from .general import get_monitor
+    from .general import get_monitor, run_in_parallel
+    from .multiprocess import __safe_wrapper, __unpack, map_unordered
 except:
-    from general import get_monitor
+    from multiprocess import __safe_wrapper, __unpack, map_unordered
+    from general import get_monitor, run_in_parallel
 
 m = get_monitor()
 
@@ -61,9 +65,9 @@ class Image:
                 f" {len(self.img.shape)} has to be a shape of len  3 (Height, Width, Channels) or 2 (Height, Width)"
             )
 
-        if not self.img.shape[-1] in [1, 3, 4]:
+        if not self.img.shape[-1] in [1, 2, 3, 4]:
             raise ValueError(
-                f" n_channels (last image dimension) has to be 1 (gray), 3 (rgb) or 4 (rgba), got {self.img.shape[-1]}"
+                f" n_channels (last image dimension) has to be 1 (gray), 2 (uv), 3 (rgb) or 4 (rgba), got {self.img.shape[-1]}"
             )
 
         if resolution_drop != 1.0:
@@ -77,6 +81,10 @@ class Image:
 
         self.dtype = self.img.dtype
         self.set_type(dtype)
+
+    def to_sparse(self):
+        self.img = self.img.to_sparse()
+        return self
 
     def __del__(self):
         del self.img
@@ -128,6 +136,12 @@ class Image:
 
         return img
 
+    def get_max_val(self):
+        if self.dtype in [torch.float32, torch.float64, torch.bool]:
+            return 1.0
+        elif self.dtype == torch.uint8:
+            return 255
+
     def to(self, device):
         self.device = device
         self.img = self.img.to(device)
@@ -171,6 +185,7 @@ class Image:
             self.img = torch.from_numpy(
                 self.resized(r.type(torch.LongTensor), interp=interp)
             ).to(self.device)
+        return self
 
     def resolution(self):
         return torch.LongTensor([self.img.shape[0], self.img.shape[1]])
@@ -218,13 +233,20 @@ class Image:
         return key
 
     def save(self, img_path, verbose=True):
-        img_path = str(img_path)
-        Path(img_path).parent.mkdir(parents=True, exist_ok=True)
-
         img = self.to("cpu").type(torch.uint8).numpy()
+        self.save_base(img, img_path, verbose)
+
+    @staticmethod
+    def save_base(img, img_path, verbose=True):
+        img_path = str(img_path)
         cv2.imwrite(img_path, cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        Path(img_path).parent.mkdir(parents=True, exist_ok=True)
         if verbose:
             print("saved image in: ", img_path)
+
+    def save_parallel(self, img_path, verbose=True):
+        img = self.to("cpu").type(torch.uint8).numpy()
+        mp.Process(target=self.save_base, args=(img, img_path, verbose)).start()
 
     def get_indices_with_val(self, val):
         indices = torch.nonzero(self.img == val)
@@ -454,12 +476,14 @@ class Image:
         # inpaint with cv2
         img = self.type(torch.uint8).numpy()
         mask = mask.type(torch.uint8).numpy()
-        import ipdb
-
-        ipdb.set_trace()
         # img = cv2.inpaint(self.numpy(), mask.numpy(), 3, cv2.INPAINT_TELEA)
         # img = cv2.inpaint(img, mask, 3, cv2.INPAINT_TELEA)
         img = cv2.inpaint(img, mask, 3, cv2.INPAINT_NS)
+        return Image(img=img)
+
+    def gamma_correction(self, gamma):
+        img = self.img
+        img = img**gamma
         return Image(img=img)
 
     def fill_black_pixels(
@@ -554,7 +578,9 @@ class Image:
     def sobel(self):
         # print(self.gray().numpy().shape)
         # img_new = torch.from_numpy(feature.canny(self.gray().numpy()))
-        img_new = torch.from_numpy(filters.sobel(self.gray().numpy()))
+        gn = self.gray().numpy()
+        s = filters.sobel(gn)
+        img_new = torch.from_numpy(s)
         return Image.from_img(img_new)
 
     def canny(self, sigma):
@@ -562,16 +588,19 @@ class Image:
         return Image.from_img(img_new)
 
     def max_pooling(self, kernel_size=5):
-        image_curr = F.max_pool2d(
-            self.img.type(torch.float32).unsqueeze(-1),
+        image_in = self.img.permute(2, 0, 1).unsqueeze(0)
+        image_out = F.max_pool2d(
+            image_in,
             kernel_size=kernel_size,
             stride=(1),
             padding=int(kernel_size / 2),
-        ).type(torch.uint8)
-        image_curr = image_curr.squeeze(-1)
+        ).squeeze(0)
+        return Image(image_out.permute(1, 2, 0))
+        # image_curr = image_curr.type(torch.uint8)
+        # image_curr = image_curr.squeeze(-1)
         # cv2.imshow("",image_curr.numpy())
         # cv2.waitKey(0)
-        return image_curr
+        # return image_curr
 
     def get_pix_max_intensity(self, dtype=torch.float32):
         img = torch.mean(self.img, dim=-1, dtype=dtype)
@@ -661,6 +690,19 @@ class Image:
 
         return torch.stack((cols, rows), dim=1)
 
+    def put_text_on_image(self, text, position, font_scale=1, color=(255, 0, 0)):
+        img = self.img.numpy()
+        cv2.putText(
+            img,
+            text,
+            position,
+            cv2.FONT_HERSHEY_SIMPLEX,
+            font_scale,
+            color,
+            2,
+        )
+        return Image(img)
+
     def draw_circles(self, centers, radius=3, color=(255, 0, 255), thickness=2):
         if isinstance(centers, np.ndarray):
             centers = torch.from_numpy(centers.astype(np.int32))
@@ -700,7 +742,9 @@ class Image:
 
         return Image(output_image)
 
-    def show_points(self, coords=[], method="cv2", wk=1, name="unk"):
+    def show_points(
+        self, coords=[], method="cv2", wk=1, name="unk", radius=3, color=(0, 0, 255)
+    ):
         if method == "plt":
             plt.imshow(self.numpy().astype(np.uint8))  # Cast to uint8 for image display
             for y, x in coords:
@@ -713,7 +757,7 @@ class Image:
             coords = torch.flip(coords, dims=[-1])
             # for coord in coords:
             #     img.draw_circles(coord, radius=3, color=(0, 0, 255), thickness=-1)
-            img.draw_circles(coords, radius=3, color=(0, 0, 255), thickness=-1)
+            img.draw_circles(coords, radius=radius, color=color, thickness=-1)
             key = img.show(img_name=name, wk=wk)
             return key
 
@@ -757,11 +801,14 @@ class Image:
         return key
 
     @staticmethod
-    def merge_images(image_1, image_2, weight):
+    def merge_images(image_1, image_2, weight, device=None):
+        if device is None:
+            device = image_1.device
+
         assert weight >= 0 and weight <= 1
         w1 = weight
         w2 = 1 - weight
-        new_img = image_1.float() * w1 + image_2.float() * w2
+        new_img = image_1.float().to(device) * w1 + image_2.float().to(device) * w2
         new_image = Image.from_img(new_img)
         return new_image
 
@@ -796,6 +843,7 @@ class Image:
         centroids = center_of_mass(
             self.img, labeled_mask, np.arange(1, num_clusters + 1)
         )
+        centroids = [(c[0], c[1]) for c in centroids]
 
         # Step 3: Create a multi-mask where each channel is a separate cluster
         height, width, ch = self.img.shape
@@ -807,7 +855,7 @@ class Image:
             # Store it as a separate channel in the multi-mask
             multi_mask[:, :, cluster_id - 1] = cluster_mask.squeeze()
 
-        return num_clusters, centroids, multi_mask
+        return num_clusters, centroids, torch.from_numpy(multi_mask)
 
     @staticmethod
     def get_multimask_with_colormap(img, colormap_name="tab20"):

@@ -28,11 +28,13 @@ class frame_extractor:
         pixel_format="BayerRG8",
         exposure_time=20000,
         signal_period=100000,
+        strategy="UpcomingImage",
         crop=False,
     ):
 
         self.load_devices()
 
+        self.strategy = strategy
         self.sRGB = "sRgb" if sRGB else "Off"
         self.pixel_format = pixel_format
         self.min_exp_time = 20
@@ -40,7 +42,7 @@ class frame_extractor:
         self.exposure_time = exposure_time
         self.signal_period = signal_period
         self.crop = crop
-        self.count_max = 5
+        self.count_max = 10
         self.converter = None
         self.init()
 
@@ -146,10 +148,11 @@ class frame_extractor:
         # for camera in self.cam_array:
         self.set_trigger(self.cam_array, signal_period)
 
-        self.cam_array.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)  # fast
+        # self.cam_array.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)  # fast
         # self.cam_array.StartGrabbing(pylon.GrabStrategy_LatestImages) # fast
         # self.cam_array.StartGrabbing(pylon.GrabStrategy_OneByOne)  # fast
         # self.cam_array.StartGrabbing(pylon.GrabStrategy_UpcomingImage)  # slow
+        self.cam_array.StartGrabbing(getattr(pylon, "GrabStrategy_" + self.strategy))
 
         return True
 

@@ -8,6 +8,10 @@ import time
 from screeninfo import get_monitors
 import os
 import importlib.util
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+from functools import wraps
+from typing import Callable, Iterable, Optional, Any
+
 
 ##### IMPORT ######
 
@@ -83,6 +87,19 @@ def timing_decorator_print(func):
         execution_time = end_time - start_time
         print("execution time: ", execution_time)
         return result
+
+    return wrapper
+
+
+def run_in_parallel(func):
+    """Decorator to run a function in parallel using ProcessPoolExecutor."""
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        # Create a thread pool and execute the function asynchronously
+        with ProcessPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(func, *args, **kwargs)
+        return future  # Return the future to allow further handling
 
     return wrapper
 

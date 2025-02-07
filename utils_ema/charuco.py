@@ -143,7 +143,9 @@ class Charuco(ArucoDetector):
             # # detector_params.minMarkerDistanceRate = 0.05
             # detector_params.adaptiveThreshConstant = 1
             # detector_params.adaptiveThreshWinSizeMin = 3
-            # detector_params.markerBorderBits = 2
+            # detector_params.adaptiveThreshWinSizeMax = 53
+            # # detector_params.markerBorderBits = 2
+            # detector_params.adaptiveThreshWinSizeStep = 10
             detector_params.adaptiveThreshWinSizeStep = 1
             # detector_params.cornerRefinementMinAccuracy = 0.01
             # detector_params.cornerRefinementWinSize = 3

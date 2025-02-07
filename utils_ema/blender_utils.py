@@ -229,6 +229,14 @@ def set_object_pose(obj, pose: Pose):
     # obj.rotation_euler = pose.euler.e.numpy()
 
 
+def set_viewport_shading(mode):
+    for area in bpy.context.screen.areas:
+        if area.type == "VIEW_3D":  # Check if the area is a 3D Viewport
+            for space in area.spaces:
+                if space.type == "VIEW_3D":  # Check if the space is a 3D Viewport space
+                    space.shading.type = mode
+
+
 # def generate_camera_from_camcv(cam, name):
 #     cam.name = name
 #     camera_data = bpy.data.cameras.new(name=cam.name)

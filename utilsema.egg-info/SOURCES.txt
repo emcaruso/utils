@@ -1,0 +1,6 @@
+README.md
+setup.py
+utilsema.egg-info/PKG-INFO
+utilsema.egg-info/SOURCES.txt
+utilsema.egg-info/dependency_links.txt
+utilsema.egg-info/top_level.txt

@@ -1,5 +1,7 @@
 from setuptools import setup, find_packages
  
 setup(  name = "utils_ema",
-        packages=find_packages(include=['utils_ema/']),
-        version="1.0")
+        packages=find_packages(),
+        version="0.1.0",
+        python_requires=">=3.10",
+      )

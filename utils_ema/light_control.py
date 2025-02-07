@@ -2,7 +2,8 @@ from utils_ema.net_controller import NetController
 import time
 import logging
 
-class LightController():
+
+class LightController:
 
     def __init__(self, ip_controller, protocol="tcp"):
         self.ip = ip_controller
@@ -12,7 +13,8 @@ class LightController():
         self.tcp_port_out = 30312
         self.n_channels = 16
         self.protocol = protocol
-        self.ampere_default = 0.01
+        self.ampere_default = 1
+        self.i = 0
         if not NetController.check_reachability(self.ip):
             raise ConnectionError("Light controller is not reachable!")
         else:
@@ -37,8 +39,8 @@ class LightController():
     # get status
 
     def log_channel_status(self, channel):
-        res = self.__send_message("ST"+str(channel))
-        logging.info("   channel: "+str(channel).zfill(2)+res.split("M")[1][:-3])
+        res = self.__send_message("ST" + str(channel))
+        logging.info("   channel: " + str(channel).zfill(2) + res.split("M")[1][:-3])
 
     def log_all_channel_status(self):
         for i in range(self.n_channels):
@@ -46,7 +48,8 @@ class LightController():
 
     def log_trigger_status(self, log=True):
         res = self.__send_message("ST16")
-        if log: logging.info("   "+res.split("ST16")[1][3:-3])
+        if log:
+            logging.info("   " + res.split("ST16")[1][3:-3])
         return res
 
     def log_status(self):
@@ -59,16 +62,20 @@ class LightController():
         self.__send_message("TT0")
 
     def set_trigger_groups(self, mode):
-        self.__send_message("FP"+str(mode), protocol=self.protocol)
+        self.__send_message("FP" + str(mode), protocol=self.protocol)
 
     def send_trigger_pulse(self, trigger_id):
-        self.__send_message("TR"+str(trigger_id), protocol=self.protocol)
+        self.__send_message("TR" + str(trigger_id), protocol=self.protocol)
 
     # test trigger
     def set_trigger_test(self, milliseconds):
-        self.__send_message("TT1"+","+str(milliseconds)+"MS", protocol=self.protocol)
+        self.__send_message(
+            "TT1" + "," + str(milliseconds) + "MS", protocol=self.protocol
+        )
 
-    def test_lights_and_trigger(self, amp=0.0001, period_ms=40, pulse_width_ms=20, time_s=1):
+    def test_lights_and_trigger(
+        self, amp=0.0001, period_ms=40, pulse_width_ms=20, time_s=1
+    ):
         for i in range(self.n_channels):
             # self.set_led_pulse(channel=i, amp=amp, width_ms=pulse_width_ms)
             self.set_led_switch(channel=i, amp=amp)
@@ -76,50 +83,112 @@ class LightController():
         time.sleep(time_s)
         self.clear_settings()
 
-
     # set leds
 
-    def set_led_pulse(self, channel, amp=None, width_ms=200, trig_delay=0, retrig_delay=0):
-        if amp is None: amp=self.ampere_default
-        self.__send_message("RT"+str(channel)+","+str(width_ms*1000)+","+str(trig_delay)+","+str(amp)+","+str(retrig_delay), protocol=self.protocol)
+    def set_led_pulse(
+        self, channel, amp=None, width_ms=200, trig_delay=0, retrig_delay=0
+    ):
+        if amp is None:
+            amp = self.ampere_default
+        self.__send_message(
+            "RT"
+            + str(channel)
+            + ","
+            + str(width_ms * 1000)
+            + ","
+            + str(trig_delay)
+            + ","
+            + str(amp)
+            + ","
+            + str(retrig_delay),
+            protocol=self.protocol,
+        )
 
     def set_led_continuous(self, channel, amp=None):
-        if amp is None: amp=self.ampere_default
-        self.__send_message("RS"+str(channel)+","+str(amp), protocol=self.protocol)
+        if amp is None:
+            amp = self.ampere_default
+        self.__send_message(
+            "RS" + str(channel) + "," + str(amp), protocol=self.protocol
+        )
 
     def set_led_switch(self, channel, amp=None):
-        if amp is None: amp=self.ampere_default
-        self.__send_message("RW"+str(channel)+","+str(amp), protocol=self.protocol)
+        if amp is None:
+            amp = self.ampere_default
+        self.__send_message(
+            "RW" + str(channel) + "," + str(amp), protocol=self.protocol
+        )
 
     def set_led_pulse_all(self, amp=None, width_ms=200, trig_delay=0, retrig_delay=0):
-        if amp is None: amp=self.ampere_default
+        if amp is None:
+            amp = self.ampere_default
         for i in range(self.n_channels):
-            self.set_led_pulse(i, amp=amp, width_ms=width_ms, trig_delay=trig_delay, retrig_delay=retrig_delay)
+            self.set_led_pulse(
+                i,
+                amp=amp,
+                width_ms=width_ms,
+                trig_delay=trig_delay,
+                retrig_delay=retrig_delay,
+            )
 
-    def led_on(self, channel, amp=None, only=False):
-        if amp is None: amp=self.ampere_default
+    def leds_on(self, channels, only=False, amp=None):
+        if amp is None:
+            amp = self.ampere_default
 
-        if only:
-            for i in range(self.n_channels): self.led_off(i)
+        for i in range(self.n_channels):
+            if i in channels:
+                self.set_led_continuous(i, amp=amp)
+            elif only:
+                self.led_off(i)
 
-        self.set_led_continuous(channel, amp=amp)
- 
+    def leds_off(self, channels):
+        for i in channels:
+            self.set_led_continuous(i, amp=0)
+
+    def led_on(self, channel, amp=None, only=False, wait=0.0):
+        if amp is None:
+            amp = self.ampere_default
+
+        for i in range(self.n_channels):
+            if i == channel:
+                self.set_led_continuous(i, amp=amp)
+            elif only:
+                self.led_off(i)
+
+        time.sleep(wait)
+
+    def all_leds_on(self, amp=None):
+        for i in range(self.n_channels):
+            self.led_on(i)
+
+    def all_leds_off(self, wait=0.0):
+        for i in range(self.n_channels):
+            self.led_off(i)
+        time.sleep(wait)
+
+    def led_next(self, amp=None, only=True):
+        self.led_on(self.i, amp=amp, only=only)
+        self.i += 1
+        if self.i >= self.n_channels:
+            self.reset_counter()
+
+    def reset_counter(self):
+        self.i = 0
+
     def led_off(self, channel):
         self.set_led_continuous(channel=channel, amp=0)
-    # def led_pulse(self, channel, 
 
+    # def led_pulse(self, channel,
 
-    # def led_pulse(self, channel, 
-
+    # def led_pulse(self, channel,
 
     def clear_settings(self):
         self.__send_message("CL", protocol=self.protocol)
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     # start_server('10.0.2.15', 30312)
-    lc = LightController('192.168.1.100')
+    lc = LightController("192.168.1.100")
 
     # lc.set light(
     # lc.set_trigger_groups(0)
@@ -127,15 +196,11 @@ if __name__=="__main__":
     # lc.send_trigger_pulse(0)
 
     lc.test_lights_and_trigger()
-    # lc.clear_settings()                
+    # lc.clear_settings()
     lc.log_status()
     # lc.test_lights_and_trigger()
     # time.sleep(10)
     # lc.clear_settings()
 
-
     # lc.send_trigger_pulse(0)
     # lc.clear_settings()
-
-
-

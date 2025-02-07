@@ -274,9 +274,10 @@ class Pose:
         Rs = []
         ts = []
         for pose in pose_array:
-            assert type(pose) == cls
-            Rs.append(pose.rotation().unsqueeze(0))
-            ts.append(pose.location().unsqueeze(0))
+            if pose is not None:
+                assert type(pose) == cls
+                Rs.append(pose.rotation().unsqueeze(0))
+                ts.append(pose.location().unsqueeze(0))
 
         R = torch.cat(Rs, dim=0)
         t = torch.cat(ts, dim=0)

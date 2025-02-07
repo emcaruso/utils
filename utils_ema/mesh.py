@@ -4,6 +4,7 @@ import cv2
 import trimesh
 import numpy as np
 from tqdm import tqdm
+from utils_ema.texture import Texture
 
 
 def read_mesh(path, device="cpu"):
@@ -321,179 +322,171 @@ class Mesh:
 
         return img
 
-    def get_texture_3dposition(self, res):
-        texture_resolution = (res, res, 3)
-        height, width, ch = texture_resolution
-        # get mask texture of the uv map from mesh
-        texture = torch.zeros(
-            texture_resolution, dtype=torch.float32, device=self.device
-        )
+    def get_texture_3dposition(self, texture_size, batch_size=10000):
+        vertices, faces, uvs = self.vertices, self.indices, self.uv
+        h, w = texture_size, texture_size
+        device = vertices.device
 
-        uv_coords = self.uv  # (M, 2) array of UV coordinates (in [0, 1] range)
-        uv_coords = uv_coords * torch.tensor([width, height])
-        faces = self.indices  # (N, 3) array of face indices
-        vertices = self.vertices  # (N, 3) array of face indices
+        # initialize the output texture and mask
+        texture = torch.zeros((h, w, 3), dtype=torch.float32, device=device)
+        pixel_mask = torch.zeros((h, w), dtype=torch.bool, device=device)
 
-        self.fill_texture_with_triangles_fixed_shape(
-            texture, uv_coords, vertices, faces
-        )
-
-    @staticmethod
-    def fill_texture_with_triangles_fixed_shape(
-        texture, uv_coords, vertices, faces, batch_size=10
-    ):
-        """
-        Fills a texture with 3D positions using fixed-shape triangle rasterization and vmap.
-        Parameters:
-            texture: The texture array to write to.
-            uv_coords: (M, 2) array of UV coordinates.
-            vertices: (N, 3) array of vertex 3D positions.
-            faces: (F, 3) array of face indices.
-            batch_size: Number of triangles to process in each batch.
-        Returns:
-            The updated texture.
-        """
-        h, w, _ = texture.shape
         num_faces = faces.shape[0]
+        for batch_start in range(0, num_faces, batch_size):
+            batch_end = min(batch_start + batch_size, num_faces)
 
-        # Generate a fixed-size grid for the entire texture
-        x_range = torch.arange(w, device=texture.device)
-        y_range = torch.arange(h, device=texture.device)
-        yy, xx = torch.meshgrid(y_range, x_range, indexing="ij")
-        global_grid = torch.stack([xx, yy], dim=-1).reshape(-1, 2)  # (H*W, 2)
+            # get the current batch of triangles
+            batch_faces = faces[batch_start:batch_end]  # (b, 3)
+            batch_tri_verts = vertices[batch_faces]  # (b, 3, 3)
+            batch_tri_uvs = uvs[batch_faces]  # (b, 3, 2)
+            batch_tri_uvs = batch_tri_uvs * torch.tensor(
+                [w - 1, h - 1], device=device
+            )  # scale to texture size
 
-        for i in tqdm(range(0, num_faces, batch_size)):
-            batch_faces = faces[i : i + batch_size]
-            tri_uv = uv_coords[batch_faces]  # (B, 3, 2)
-            tri_vertices = vertices[batch_faces]  # (B, 3, 3)
-
-            # Compute bounding boxes
-            min_xy = torch.clamp(
-                torch.floor(torch.min(tri_uv, dim=1).values), min=0
-            ).int()
-            max_xy = torch.clamp(
-                torch.ceil(torch.max(tri_uv, dim=1).values),
-                max=torch.tensor([w, h], device=texture.device),
-            ).int()
-
-            # Create masks for each triangle's grid
-            masks = []
-            for j in range(min_xy.shape[0]):
-                min_x, min_y = min_xy[j]
-                max_x, max_y = max_xy[j]
-                mask = (
-                    (global_grid[:, 0] >= min_x)
-                    & (global_grid[:, 0] <= max_x)
-                    & (global_grid[:, 1] >= min_y)
-                    & (global_grid[:, 1] <= max_y)
-                )
-                masks.append(mask)
-
-            masks = torch.stack(masks, dim=0)  # (B, H*W)
-
-            def rasterize_triangle(tri_uv, tri_vertices, mask):
-                # Select valid pixels
-                local_pixels = global_grid[mask]  # (L, 2)
-
-                # Compute barycentric coordinates
-                bary_coords = _barycentric_coordinates(local_pixels, tri_uv)  # (L, 3)
-                inside = (bary_coords >= 0).all(dim=-1)  # (L,)
-
-                # Interpolate 3D positions
-                interpolated = torch.matmul(
-                    bary_coords[inside], tri_vertices
-                )  # (L_in, 3)
-
-                # Return valid pixels and their interpolated values
-                return local_pixels[inside], interpolated
-
-            # Use vmap to process triangles in the batch
-            rasterize_batched = vmap(rasterize_triangle, in_dims=(0, 0, 0))
-            all_pixels, all_3d_positions = rasterize_batched(
-                tri_uv, tri_vertices, masks
+            # compute bounding boxes for all triangles in the batch
+            min_uvs = batch_tri_uvs.min(dim=1).values.floor().clamp(min=0)
+            max_uvs = (
+                batch_tri_uvs.max(dim=1)
+                .values.ceil()
+                .clamp(max=torch.tensor([w - 1, h - 1], device=device))
             )
 
-            # Write to texture
-            for pixels, positions in zip(all_pixels, all_3d_positions):
-                texture[pixels[:, 1], pixels[:, 0]] = positions
+            # create grid coordinates for all bounding boxes in the batch
+            u_ranges = [
+                torch.arange(min_uvs[i, 0], max_uvs[i, 0] + 1, device=device)
+                for i in range(min_uvs.shape[0])
+            ]
+            v_ranges = [
+                torch.arange(min_uvs[i, 1], max_uvs[i, 1] + 1, device=device)
+                for i in range(min_uvs.shape[0])
+            ]
+            pixel_grids = [
+                torch.stack(
+                    torch.meshgrid(u_range, v_range, indexing="ij"), dim=-1
+                ).reshape(-1, 2)
+                for u_range, v_range in zip(u_ranges, v_ranges)
+            ]  # list of (p_i, 2)
 
-        return texture
+            # combine all grids into a single tensor
+            all_pixel_uvs = torch.cat(pixel_grids, dim=0)  # (total_pixels, 2)
+            all_pixel_uvs_triangle_idx = torch.cat(
+                [
+                    torch.full(
+                        (pixel_grid.shape[0],), i, dtype=torch.long, device=device
+                    )
+                    for i, pixel_grid in enumerate(pixel_grids)
+                ]
+            )  # (total_pixels,)
 
-    # def _fill_triangles_with_3d_position(self, texture, uv_coords, vertices, faces):
-    #     """
-    #     Fills a 2D triangle in the texture with the interpolated 3D positions
-    #     using barycentric interpolation.
-    #     Parameters:
-    #         texture: The texture array to write to.
-    #         tri_uv: The UV coordinates of the triangle.
-    #         tri_vertices: The 3D positions of the triangle's vertices.
-    #     """
-    #
-    #     import ipdb
-    #
-    #     ipdb.set_trace()
-    #
-    #     # get the bounding box of the triangle
-    #     min_x = torch.floor(torch.min(uv_coords[faces], dim=1).values).type(torch.int32)
-    #     max_x = torch.ceil(torch.max(uv_coords[faces], dim=1).values).type(torch.int32)
-    #     min_y = torch.floor(torch.min(uv_coords[faces], dim=1).values).type(torch.int32)
-    #     max_y = torch.ceil(torch.max(uv_coords[faces], dim=1).values).type(torch.int32)
+            # compute barycentric coordinates for all pixels in batch
+            batch_tri_uvs_flat = batch_tri_uvs[
+                all_pixel_uvs_triangle_idx
+            ]  # (total_pixels, 3, 2)
+            bary = self.compute_barycentric(
+                all_pixel_uvs, batch_tri_uvs_flat
+            )  # (total_pixels, 3)
+
+            # mask to determine valid pixels
+            inside_mask = (bary >= 0).all(dim=1)  # (total_pixels,)
+            valid_pixels = all_pixel_uvs[inside_mask]  # (valid_pixels, 2)
+            valid_bary = bary[inside_mask]  # (valid_pixels, 3)
+            valid_triangle_idx = all_pixel_uvs_triangle_idx[
+                inside_mask
+            ]  # (valid_pixels,)
+
+            # interpolate 3d coordinates for valid pixels
+            valid_tri_verts = batch_tri_verts[
+                valid_triangle_idx
+            ]  # (valid_pixels, 3, 3)
+            interpolated_3d = torch.einsum(
+                "ij,ijk->ik", valid_bary, valid_tri_verts
+            )  # (valid_pixels, 3)
+
+            # write to the texture
+            texture[valid_pixels[:, 1].long(), valid_pixels[:, 0].long()] = (
+                interpolated_3d
+            )
+            pixel_mask[valid_pixels[:, 1].long(), valid_pixels[:, 0].long()] = True
+
+        # return texture.flip(0), pixel_mask
+        return Texture.init_from_img(texture.flip(0))
+
+    @staticmethod
+    def compute_barycentric(points, triangles):
+        """
+        compute barycentric coordinates for a set of points with respect to multiple triangles in batch.
+
+        args:
+            points: (p, 2) tensor of 2d points (e.g., uv coordinates of pixels).
+            triangles: (p, 3, 2) tensor of the triangle's vertices in 2d for each point.
+
+        returns:
+            bary: (p, 3) tensor of barycentric coordinates for each point.
+        """
+        # unpack triangle vertices
+        a = triangles[:, 0]  # (p, 2)
+        b = triangles[:, 1]  # (p, 2)
+        c = triangles[:, 2]  # (p, 2)
+
+        # compute edge vectors
+        v0 = b - a  # (p, 2)
+        v1 = c - a  # (p, 2)
+        v2 = points - a  # (p, 2)
+
+        # compute dot products
+        d00 = (v0 * v0).sum(dim=1)  # (p,)
+        d01 = (v0 * v1).sum(dim=1)  # (p,)
+        d11 = (v1 * v1).sum(dim=1)  # (p,)
+        d20 = (v2 * v0).sum(dim=1)  # (p,)
+        d21 = (v2 * v1).sum(dim=1)  # (p,)
+
+        # compute denominator of barycentric coordinates
+        denom = d00 * d11 - d01 * d01  # (p,)
+
+        # compute barycentric coordinates
+        v = (d11 * d20 - d01 * d21) / denom  # (p,)
+        w = (d00 * d21 - d01 * d20) / denom  # (p,)
+        u = 1.0 - v - w  # (p,)
+
+        # combine into a single tensor
+        bary = torch.stack([u, v, w], dim=-1)  # (p, 3)
+
+        return bary
 
     def get_texture_3darea(self, res):
-        """
-        Downsample the 3D position texture of size (res*2, res*2, 3) to a new texture of size (res, res),
-        where each pixel contains the area of the quadrilateral formed by 4 adjacent pixels in the original texture.
+        position_texture = self.get_texture_3dposition(res * 2).img
 
-        Parameters:
-            position_texture: numpy array of shape (res*2, res*2, 3) containing 3D positions.
-            res: The target resolution for the downsampled texture (output size will be (res, res)).
+        # Extract the 2x2 grid cells for all (i, j) simultaneously
+        p1 = position_texture[0::2, 0::2]  # Top-left corners
+        p2 = position_texture[0::2, 1::2]  # Top-right corners
+        p3 = position_texture[1::2, 0::2]  # Bottom-left corners
+        p4 = position_texture[1::2, 1::2]  # Bottom-right corners
 
-        Returns:
-            A numpy array of shape (res, res) where each pixel contains the computed area.
-        """
+        # Compute the area of the quadrilateral for each 2x2 block in parallel
+        area_texture = self._compute_quadrilateral_area_batch(p1, p2, p3, p4)
 
-        position_texture = self.get_texture_3dposition(res * 2)
-        # Initialize the output texture to store areas
-        area_texture = np.zeros((res, res), dtype=np.float32)
+        return Texture.init_from_img(area_texture)
 
-        for i in range(res):
-            for j in range(res):
-                # Get the 2x2 block of 3D positions from the original position_texture
-                p1 = position_texture[2 * i, 2 * j]
-                p2 = position_texture[2 * i, 2 * j + 1]
-                p3 = position_texture[2 * i + 1, 2 * j]
-                p4 = position_texture[2 * i + 1, 2 * j + 1]
+    @staticmethod
+    def _compute_quadrilateral_area_batch(p1, p2, p3, p4):
+        # Vectorized cross product for the two triangles forming the quadrilateral
+        v1 = p2 - p1  # Vector p1 -> p2
+        v2 = p3 - p1  # Vector p1 -> p3
+        v3 = p4 - p2  # Vector p2 -> p4
+        v4 = p4 - p3  # Vector p3 -> p4
 
-                # Compute the area of the quadrilateral formed by these 4 points
-                area = _compute_quadrilateral_area(p1, p2, p3, p4)
+        # Compute cross products for the two triangles
+        cross1 = torch.cross(v1, v2)  # Triangle 1: p1, p2, p3
+        cross2 = torch.cross(v3, v4)  # Triangle 2: p2, p4, p3
 
-                # Store the area in the downsampled texture
-                area_texture[i, j] = area
+        # Compute magnitudes of the cross products (area = 0.5 * ||cross|| for each triangle)
+        area1 = torch.linalg.norm(cross1, axis=-1) * 0.5
+        area2 = torch.linalg.norm(cross2, axis=-1) * 0.5
 
-        return area_texture
+        # Total area of the quadrilateral
+        area = area1 + area2
 
-
-def _compute_quadrilateral_area(p1, p2, p3, p4):
-    """
-    Compute the area of a quadrilateral in 3D formed by points p1, p2, p3, p4.
-    It divides the quadrilateral into two triangles (p1, p2, p3) and (p1, p3, p4).
-    """
-
-    def triangle_area(v1, v2, v3):
-        # Compute area of a triangle given three vertices in 3D
-        edge1 = v2 - v1
-        edge2 = v3 - v1
-        cross_product = np.cross(edge1, edge2)
-        return 0.5 * np.linalg.norm(cross_product)
-
-    # First triangle (p1, p2, p3)
-    area1 = triangle_area(p1, p2, p3)
-
-    # Second triangle (p1, p3, p4)
-    area2 = triangle_area(p1, p3, p4)
-
-    # Total area is the sum of the two triangle areas
-    return area1 + area2
+        return area
 
 
 def _is_point_in_triangle(pt, tri_uv):
