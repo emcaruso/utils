@@ -153,6 +153,9 @@ class Image:
     def float(self):
         return self.type(torch.float32)
 
+    def uint8(self):
+        return self.type(torch.uint8)
+
     def is_grayscale(self, image):
         if image.shape[-1] == 3:
             b1 = torch.max(torch.abs(image[..., 0] - image[..., 1])) == 0
@@ -232,15 +235,15 @@ class Image:
         key = cv2.waitKey(wk)
         return key
 
-    def save(self, img_path, verbose=True):
+    def save(self, img_path, verbose=False):
         img = self.to("cpu").type(torch.uint8).numpy()
         self.save_base(img, img_path, verbose)
 
     @staticmethod
-    def save_base(img, img_path, verbose=True):
+    def save_base(img, img_path, verbose):
         img_path = str(img_path)
-        cv2.imwrite(img_path, cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
         Path(img_path).parent.mkdir(parents=True, exist_ok=True)
+        cv2.imwrite(img_path, cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
         if verbose:
             print("saved image in: ", img_path)
 

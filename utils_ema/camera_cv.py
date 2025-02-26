@@ -111,17 +111,6 @@ class Intrinsics:
     def fy(self):
         return self.K[..., 1, 1]
 
-    # def resize_pixels(self, resolution=None, resolution_drop=None):
-    #     assert( (resolution is None) != (resolution_drop is None) )
-    #     if(resolution is not None):
-    #         self.resolution = resolution
-    #         self.K_pix = self.get_K_in_pixels()
-    #         _, K_pix_und, self.roi_und = self.get_K_und()
-    #     elif(resolution_drop is not None):
-    #         self.resolution = (self.resolution*resolution_drop).type(torch.LongTensor)
-    #         self.K_pix = self.get_K_in_pixels()
-    #         _, K_pix_und, self.roi_und = self.get_K_und()
-    #     self.K_pix_und = K_pix_und.to(self.device)
     def resize_pixels(self, fact=None):
         self.resolution = (
             (self.resolution * fact).type(torch.LongTensor).to(self.device)

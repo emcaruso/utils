@@ -381,7 +381,6 @@ class frame_extractor:
     def stop_multiple_cams(self):
         self.cam_array.Close()
 
-
 if __name__ == "__main__":
     frame_extr = frame_extractor()
     frame_extr.print_devices_info()

@@ -221,7 +221,6 @@ def generate_camera_from_camcv(cam, name):
 
 
 def set_object_pose(obj, pose: Pose):
-    print("SCALEEE", pose.scale)
     obj.rotation_mode = pose.euler.convention
     obj.matrix_world = Matrix(pose.get_T().detach().numpy())
     obj.scale = np.ones(3) * pose.scale.detach().item()
@@ -235,6 +234,58 @@ def set_viewport_shading(mode):
             for space in area.spaces:
                 if space.type == "VIEW_3D":  # Check if the space is a 3D Viewport space
                     space.shading.type = mode
+
+
+def put_plane_in_scene(scene, name="Plane", x_len=1, y_len=1):
+    mesh = bpy.data.meshes.new(name=name+"Mesh")  # Create an empty mesh
+    obj = bpy.data.objects.new(
+        name=name, object_data=mesh
+    )  # Create an object using the mesh
+
+    # Create a plane geometry and assign it to the mesh
+    vertices = [  # Define the 4 vertices of the plane
+        (-x_len, -y_len, 0),
+        (x_len, -y_len, 0),
+        (x_len, y_len, 0),
+        (-x_len, y_len, 0),
+    ]
+    faces = [(0, 1, 2, 3)]  # Define the 4 faces of the plane
+    mesh.from_pydata(vertices, [], faces)
+
+    # Create UV mapping
+    uv_layer = mesh.uv_layers.new(name="UVMap")  # Add a new UV map to the mesh
+    uv_data = uv_layer.data
+    uv_coords = [
+        (0.0, 0.0),  # Vertex 0: bottom-left
+        (1.0, 0.0),  # Vertex 1: bottom-right
+        (1.0, 1.0),  # Vertex 2: top-right
+        (0.0, 1.0),  # Vertex 3: top-left
+    ]
+    for i, face in enumerate(faces):
+        for j, vertex_index in enumerate(face):
+            uv_data[i * len(face) + j].uv = uv_coords[vertex_index]
+
+    scene.collection.objects.link(obj)
+
+    return obj
+
+def set_object_texture(obj, image_path, name):
+
+    image_bpy = bpy.data.images.load(image_path)
+    image_bpy.name = name
+
+    material = bpy.data.materials.new(name="CharucoMaterial")
+    material.use_nodes = True
+    bsdf = material.node_tree.nodes.get("Principled BSDF")
+    texImage = material.node_tree.nodes.new("ShaderNodeTexImage")
+    texImage.image = image_bpy
+    material.node_tree.links.new(bsdf.inputs["Base Color"], texImage.outputs["Color"])
+    # Assign the material to the object
+    if obj.data.materials:
+        obj.data.materials[0] = material
+    else:
+        obj.data.materials.append(material)
+
 
 
 # def generate_camera_from_camcv(cam, name):
