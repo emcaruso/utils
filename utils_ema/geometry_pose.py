@@ -160,7 +160,8 @@ class Pose:
 
     def get_t_inv(self):
         R_inv = self.get_R_inv()
-        return -R_inv @ self.location()
+        res = -R_inv @ self.location().unsqueeze(-1)
+        return res.squeeze(-1)
 
     def get_T(self):
         R = self.rotation()

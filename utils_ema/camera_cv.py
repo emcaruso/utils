@@ -497,7 +497,6 @@ class Camera_cv:
     def get_points_wrt_cam(self, points, transform_cam_pose: Optional[Pose] = None):
         assert torch.is_tensor(points)
         assert points.shape[-1] == 3
-        assert len(points.shape) == 2
         points = points.to(self.dtype)
         if transform_cam_pose is not None:
             pose = transform_cam_pose * self.pose
@@ -508,17 +507,16 @@ class Camera_cv:
         t_inv = pose.get_t_inv()
 
         # points_wrt_cam = torch.matmul( points, T[...,:3,:3].transpose(-2,-1) ) + T[...,:3,-1]
-        points_wrt_cam = torch.matmul(points, R_inv.transpose(-2, -1)) + t_inv
+        points_wrt_cam = torch.matmul(points, R_inv.transpose(-2, -1)) + t_inv.unsqueeze(-2)
         return points_wrt_cam
 
     def project_points_in_cam(self, points_wrt_cam: torch.Tensor, longtens: bool = True, und: bool = True):
         assert torch.is_tensor(points_wrt_cam)
         assert points_wrt_cam.shape[-1] == 3
-        assert len(points_wrt_cam.shape) == 2
         K = self.intr.K_pix
         if und:
             K = self.intr.K_pix_und
-        points_wrt_cam_scaled = points_wrt_cam * self.intr.pixel_unit_ratio()
+        points_wrt_cam_scaled = points_wrt_cam * self.intr.pixel_unit_ratio().unsqueeze(-1)
         uv = points_wrt_cam_scaled @ torch.transpose(K, -2, -1)
         d = uv[..., 2:]
         pixels = uv[..., :2] / d
@@ -548,7 +546,6 @@ class Camera_cv:
     def project_points(self, points: torch.Tensor, longtens: bool = True, return_depth: bool = False, und: bool = True, transform_cam_pose: Optional[Pose] = None):
         assert torch.is_tensor(points)
         assert points.shape[-1] == 3
-        import ipdb; ipdb.set_trace()
         points_wrt_cam = self.get_points_wrt_cam(points, transform_cam_pose)
         pixels, d = self.project_points_in_cam(points_wrt_cam=points_wrt_cam, longtens=longtens, und=und)
         if return_depth:
@@ -560,16 +557,15 @@ class Camera_cv:
     def distort(self, points: torch.Tensor)-> torch.Tensor:
         # given D_params (5 distortion parameters), warp 2D points according to lens distortion
         assert torch.is_tensor(points)
-        assert points.shape[-1] == 2
         if self.intr.D_params is None:
             return points
 
-        k1, k2, p1, p2, k3 = self.intr.D_params
-        fx, fy, cx, cy = self.intr.K_params * self.intr.pixel_unit_ratio()
+        k1, k2, p1, p2, k3 = torch.unbind(self.intr.D_params, dim=-1)
+        fx, fy, cx, cy = torch.unbind(self.intr.K_params * self.intr.pixel_unit_ratio(), dim=-1)
 
         # Normalize to camera coordinates
-        x_n = (points[:, 0] - cx) / fx
-        y_n = (points[:, 1] - cy) / fy
+        x_n = (points[..., 0] - cx) / fx
+        y_n = (points[..., 1] - cy) / fy
 
         # Compute r^2
         r2 = x_n**2 + y_n**2
@@ -592,7 +588,7 @@ class Camera_cv:
         u_d = x_d * fx + cx
         v_d = y_d * fy + cy
 
-        return torch.stack((u_d, v_d), dim=1)
+        return torch.stack((u_d, v_d), dim=-1)
          
 
     def test_pix2ray(self):
