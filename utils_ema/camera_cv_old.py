@@ -2,7 +2,6 @@ import cv2
 import torch
 import sys, os
 import copy as cp
-from typing import Union
 
 try:
     from .geometry_pose import *
@@ -66,133 +65,76 @@ class Camera_opencv:
 class Intrinsics:
     def __init__(
         self,
-        K: torch.Tensor =torch.FloatTensor([[0.016, 0, 0.006], [0, 0.016, 0.006], [0, 0, 1]]),
-        D: Union[torch.Tensor, None] = None,
-        resolution: torch.Tensor = torch.LongTensor([30, 20]),
-        sensor_size: torch.Tensor = torch.FloatTensor([0.012, 0.012]),
+        K=torch.FloatTensor([[0.050, 0, 0.018], [0, 0.050, 0.018], [0, 0, 1]]),
+        D=None,
+        resolution=torch.LongTensor([30, 20]),
+        sensor_size=torch.FloatTensor([0.030, 0.020]),
         units: str = "meters",
-        dtype = torch.float32,
-        device: str ="cpu",
+        typ=torch.float32,
+        device="cpu",
     ):
         self.units = units
-        self.dtype = dtype
+        self.typ = typ
         self.sensor_size = sensor_size
         self.resolution = resolution
+        self.D = D
+        self.K = K
+        self.K_pix = self.get_K_in_pixels()
+        self.K_und, self.K_pix_und, self.roi_und = self.get_K_und()
+        self.dtype(typ)
         self.device = device
-        self.D_params = D if D is not None else None
-        self.K_params = torch.zeros(K.shape[:-2] + (4,), device=self.device)
-        self.K_params[...,0] = K[...,0,0]
-        self.K_params[...,1] = K[...,1,1]
-        self.K_params[...,2] = K[...,0,2]
-        self.K_params[...,3] = K[...,1,2]
-        self.update_intrinsics()
-        self.type(dtype)
         self.compute_undistortion_map()
 
-    def update_intrinsics(self):
-        self.K = self.get_K()
-        self.K_pix = self.get_K_pix()
-        self.K_und, self.K_pix_und, self.roi_und = self.get_K_und()
-
-    # Get K from params (differentiable)
-    def get_K(self):
-        fx = self.K_params[...,0]
-        fy = self.K_params[...,1]
-        cx = self.K_params[...,2]
-        cy = self.K_params[...,3]
-        zero = torch.zeros_like(fx)
-        K = torch.stack([
-            torch.stack([fx, zero, cx], dim=-1),
-            torch.stack([zero, fy, cy], dim=-1),
-            torch.tensor([0, 0, 1], device=self.device, dtype=self.dtype).expand(*fx.shape, 3)
-        ], dim=-2)
-        return K
-
-    # Get K from params (differentiable)
-    def get_K_pix(self):
-        r = self.pixel_unit_ratio()
-        K_pix = self.get_K() * r.unsqueeze(-1)
-        K_pix[..., 2, 2] = 1
-        return K_pix
-
-    # Get K_und and K_pix_und from params (NON differentiable)
-    def get_K_und(self, alpha=0, central_pp=False, same_fx_fy=True):
-        K_pix_und = None
-        K_und = None
-        roi_und = None
-        if self.D_params is not None:
-            w = self.resolution[...,0].type(torch.int32)
-            h = self.resolution[...,1].type(torch.int32)
-
-            # K_pix_und, roi_und = cv2.getOptimalNewCameraMatrix(
-            #     self.get_K_pix().cpu().numpy(),
-            #     self.D_params.cpu().numpy(),
-            #     (w, h),
-            #     alpha,
-            #     (w, h),
-            #     # centerPrincipalPoint=central_pp,
-            # )
-            
-            K_pix_und = self.get_K_pix()
-            if central_pp:
-                K_pix_und[..., 0, 2] = w / 2
-                K_pix_und[..., 1, 2] = h / 2
-
-            if same_fx_fy:
-                lens = (K_pix_und[..., 0, 0] + K_pix_und[..., 1, 1]) / 2
-                K_pix_und[..., 0, 0] = lens
-                K_pix_und[..., 1, 1] = lens
-
-            K_und = K_pix_und * self.unit_pixel_ratio().cpu().unsqueeze(-1)
-            K_und[..., 2, 2] = 1
-        else:
-            K_und = self.get_K()
-            K_pix_und = self.get_K_pix()
-
-        return K_und, K_pix_und, roi_und
-
     def compute_undistortion_map(self):
-        try:
-            D = None
-            if self.D_params is not None:
-                D = self.D_params.numpy()
+        D = None
+        if self.D is not None:
+            D = self.D.numpy()
 
-            self.undist_map = cv2.initUndistortRectifyMap(
-                self.K_pix.numpy(),
-                D,
-                None,
-                self.K_pix_und.numpy(),
-                (int(self.resolution[0]), int(self.resolution[1])),
-                cv2.CV_32FC1,
-            )
-        except:
-            {}
+        self.undist_map = cv2.initUndistortRectifyMap(
+            self.K_pix.numpy(),
+            D,
+            None,
+            self.K_pix_und.numpy(),
+            (int(self.resolution[0]), int(self.resolution[1])),
+            cv2.CV_32FC1,
+        )
 
     def cx(self):
-        return self.K_params[..., 0]
+        return self.K[..., 0, 2]
 
     def cy(self):
-        return self.K_params[..., 1]
+        return self.K[..., 1, 2]
 
     def fx(self):
-        return self.K_params[..., 2]
+        return self.K[..., 0, 0]
 
     def fy(self):
-        return self.K_params[..., 3]
+        return self.K[..., 1, 1]
 
+    # def resize_pixels(self, resolution=None, resolution_drop=None):
+    #     assert( (resolution is None) != (resolution_drop is None) )
+    #     if(resolution is not None):
+    #         self.resolution = resolution
+    #         self.K_pix = self.get_K_in_pixels()
+    #         _, K_pix_und, self.roi_und = self.get_K_und()
+    #     elif(resolution_drop is not None):
+    #         self.resolution = (self.resolution*resolution_drop).type(torch.LongTensor)
+    #         self.K_pix = self.get_K_in_pixels()
+    #         _, K_pix_und, self.roi_und = self.get_K_und()
+    #     self.K_pix_und = K_pix_und.to(self.device)
     def resize_pixels(self, fact=None):
         self.resolution = (
             (self.resolution * fact).type(torch.LongTensor).to(self.device)
         )
-        self.K_pix = self.get_K_pix().to(self.device)
+        self.K_pix = self.get_K_in_pixels().to(self.device)
         _, K_pix_und, self.roi_und = self.get_K_und()
         self.K_pix_und = K_pix_und.to(self.device)
 
     def pixel_unit_ratio(self):
-        return self.resolution[...,0:1] / self.sensor_size[...,0:1]
+        return self.resolution[0] / self.sensor_size[0]
 
     def unit_pixel_ratio(self):
-        return self.sensor_size[...,0:1] / self.resolution[...,0:1]
+        return self.sensor_size[0] / self.resolution[0]
 
     def lens(self):
         return torch.cat((self.fx().unsqueeze(-1), self.fy().unsqueeze(-1)), dim=-1)
@@ -201,9 +143,7 @@ class Intrinsics:
         return (self.fx() + self.fy()) / 2
 
     def to(self, device):
-        self.K_params = self.K_params.to(device)
-        if self.D_params is not None:
-            self.D_params = self.D_params.to(device)
+        self.K = self.K.to(device)
         self.K_pix = self.K_pix.to(device)
         if self.K_und is not None:
             self.K_und = self.K_und.to(device)
@@ -214,25 +154,96 @@ class Intrinsics:
         self.device = device
         return self
 
-    def type(self, dtype):
-        self.K_params = self.K_params.to(dtype)
-        if self.D_params is not None:
-            self.D_params = self.D_params.to(dtype)
+    def dtype(self, dtype):
+        self.K = self.K.to(dtype)
         self.K_und = self.K_und.to(dtype)
         self.K_pix = self.K_pix.to(dtype)
         self.K_pix_und = self.K_pix_und.to(dtype)
         self.sensor_size = self.sensor_size.to(dtype)
-        self.dtype = dtype
+        self.typ = dtype
         return self
 
     def uniform_scale(self, s: float, units: str = "scaled"):
-        self.K_params *= s
+        self.K[..., 0, 0] *= s
+        self.K[..., 1, 1] *= s
+        self.K[..., :2, -1] *= s
         self.units = units
         self.sensor_size *= s
         if self.K_und is not None:
             self.K_und[..., 0, 0] *= s
             self.K_und[..., 1, 1] *= s
             self.K_und[..., :2, -1] *= s
+
+    def get_K_in_pixels(self):
+        K = self.K.clone()
+        r = self.pixel_unit_ratio()
+        K[..., :2, :] *= r
+        # K[...,1,1]*=r
+        # K[...,:2,-1]*=r
+        return K
+
+    def get_K_params(self):
+
+        if self.K_params is None:
+            self.K_params = torch.cat(
+                (
+                    self.K[..., 0, 0].detach().clone(),
+                    self.K[..., 1, 1].detach().clone(),
+                    self.K[..., 0, 2].detach().clone(),
+                    self.K[..., 1, 2].detach().clone(),
+                ),
+                dim=-1,
+            )
+
+        return self.K_params
+
+    def upddate_K_from_params(self):
+        self.K = torch.tensor(
+            [
+                [self.K_params[0], 0, self.K_params[2]],
+                [0, self.K_params[1], self.K_params[3]],
+                [0, 0, 1],
+            ]
+        )
+        self.K_pix = self.get_K_in_pixels()
+        self.K_und, self.K_pix_und, self.roi_und = self.get_K_und()
+        self.compute_undistortion_map()
+
+    def get_K_und(self, alpha=0, central_pp=False, same_fx_fy=True):
+        K_pix_und = None
+        K_und = None
+        roi_und = None
+        if self.D is not None:
+            w = int(self.resolution[0])
+            h = int(self.resolution[1])
+
+            K_pix_und, roi_und = cv2.getOptimalNewCameraMatrix(
+                self.K_pix.cpu().numpy(),
+                self.D.cpu().numpy(),
+                (w, h),
+                alpha,
+                (w, h),
+                # centerPrincipalPoint=central_pp,
+            )
+
+            K_pix_und = np.array(self.K_pix)
+            if central_pp:
+                K_pix_und[0, 2] = w / 2
+                K_pix_und[1, 2] = h / 2
+
+            if same_fx_fy:
+                lens = (K_pix_und[0, 0] + K_pix_und[1, 1]) / 2
+                K_pix_und[0, 0] = lens
+                K_pix_und[1, 1] = lens
+
+            K_pix_und = torch.from_numpy(K_pix_und)
+            K_und = K_pix_und.clone()
+            K_und[..., :2, :] *= self.unit_pixel_ratio().cpu()
+        else:
+            K_und = self.K
+            K_pix_und = self.K_pix
+
+        return K_und, K_pix_und, roi_und
 
     def undistort_image(self, img):
         undistorted = cv2.remap(
@@ -265,11 +276,11 @@ class Camera_cv:
         self.name = name
         self.frame = frame
         self.pose = pose.to(device).dtype(dtype)
-        self.intr = intrinsics.to(device).type(dtype)
+        self.intr = intrinsics.to(device).dtype(dtype)
         self.images = {}
         self.image_paths = image_paths
-        self.dtype = dtype
-        self.type(self.dtype)
+        self.typ = dtype
+        self.dtype(self.typ)
         if self.intr.units != self.pose.units:
             raise ValueError(
                 "frame units ("
@@ -310,14 +321,14 @@ class Camera_cv:
             self.frame,
             name,
             device=self.device,
-            dtype=self.dtype,
+            dtype=self.typ,
         )
         return new_cam
 
-    def type(self, dtype):
-        self.pose = self.pose.dtype(dtype)
-        self.intr = self.intr.type(dtype)
-        self.dtype = dtype
+    def dtype(self, dtyp):
+        self.pose = self.pose.dtype(dtyp)
+        self.intr = self.intr.dtype(dtyp)
+        self.typ = dtyp
         return self
 
     def to(self, device):
@@ -332,7 +343,7 @@ class Camera_cv:
         K = self.intr.K_pix_und.clone()
         R = self.pose.get_R_inv()
         t = self.pose.get_t_inv()
-        cam_cv = Camera_opencv(K, R, t, device, self.dtype)
+        cam_cv = Camera_opencv(K, R, t, device, self.typ)
 
         return cam_cv
 
@@ -494,32 +505,25 @@ class Camera_cv:
     #     return overlayed
 
     # projection
-    def get_points_wrt_cam(self, points, transform_cam_pose: Optional[Pose] = None):
+    def get_points_wrt_cam(self, points):
         assert torch.is_tensor(points)
         assert points.shape[-1] == 3
         assert len(points.shape) == 2
-        points = points.to(self.dtype)
-        if transform_cam_pose is not None:
-            pose = transform_cam_pose * self.pose
-        else:
-            pose = self.pose
+        points = points.to(self.typ)
         # T = self.pose.get_T_inverse()
-        R_inv = pose.get_R_inv()
-        t_inv = pose.get_t_inv()
+        R_inv = self.pose.get_R_inv()
+        t_inv = self.pose.get_t_inv()
 
         # points_wrt_cam = torch.matmul( points, T[...,:3,:3].transpose(-2,-1) ) + T[...,:3,-1]
         points_wrt_cam = torch.matmul(points, R_inv.transpose(-2, -1)) + t_inv
         return points_wrt_cam
 
-    def project_points_in_cam(self, points_wrt_cam: torch.Tensor, longtens: bool = True, und: bool = True):
+    def project_points_in_cam(self, points_wrt_cam, longtens=True):
         assert torch.is_tensor(points_wrt_cam)
         assert points_wrt_cam.shape[-1] == 3
         assert len(points_wrt_cam.shape) == 2
-        K = self.intr.K_pix
-        if und:
-            K = self.intr.K_pix_und
-        points_wrt_cam_scaled = points_wrt_cam * self.intr.pixel_unit_ratio()
-        uv = points_wrt_cam_scaled @ torch.transpose(K, -2, -1)
+        points_wrt_cam *= self.intr.pixel_unit_ratio()
+        uv = points_wrt_cam @ torch.transpose(self.intr.K_pix_und, -2, -1)
         d = uv[..., 2:]
         pixels = uv[..., :2] / d
         # pixels = torch.index_select(pixels, 1, torch.LongTensor([1,0]))
@@ -545,55 +549,18 @@ class Camera_cv:
         proj_points = proj_points.astype("int32")
         return proj_points
 
-    def project_points(self, points: torch.Tensor, longtens: bool = True, return_depth: bool = False, und: bool = True, transform_cam_pose: Optional[Pose] = None):
+    def project_points(self, points, longtens=True, return_depth=False):
         assert torch.is_tensor(points)
         assert points.shape[-1] == 3
-        import ipdb; ipdb.set_trace()
-        points_wrt_cam = self.get_points_wrt_cam(points, transform_cam_pose)
-        pixels, d = self.project_points_in_cam(points_wrt_cam=points_wrt_cam, longtens=longtens, und=und)
+        assert len(points.shape) == 2
+        points_wrt_cam = self.get_points_wrt_cam(points)
+        pixels, d = self.project_points_in_cam(points_wrt_cam, longtens)
         if return_depth:
             return pixels, d
         else:
             return pixels
 
-
-    def distort(self, points: torch.Tensor)-> torch.Tensor:
-        # given D_params (5 distortion parameters), warp 2D points according to lens distortion
-        assert torch.is_tensor(points)
-        assert points.shape[-1] == 2
-        if self.intr.D_params is None:
-            return points
-
-        k1, k2, p1, p2, k3 = self.intr.D_params
-        fx, fy, cx, cy = self.intr.K_params * self.intr.pixel_unit_ratio()
-
-        # Normalize to camera coordinates
-        x_n = (points[:, 0] - cx) / fx
-        y_n = (points[:, 1] - cy) / fy
-
-        # Compute r^2
-        r2 = x_n**2 + y_n**2
-
-        # Radial distortion factor
-        radial = 1 + k1 * r2 + k2 * r2**2 + k3 * r2**3
-
-        # Compute radial and tangential distortion
-        x_r = x_n * radial
-        y_r = y_n * radial
-
-        x_t = 2 * p1 * x_n * y_n + p2 * (r2 + 2 * x_n**2)
-        y_t = p1 * (r2 + 2 * y_n**2) + 2 * p2 * x_n * y_n 
-        
-        # Apply distortions
-        x_d = x_r + x_t
-        y_d = y_r + y_t
-
-        # Convert back to pixel coordinates
-        u_d = x_d * fx + cx
-        v_d = y_d * fy + cy
-
-        return torch.stack((u_d, v_d), dim=1)
-         
+    # def project_points_with_distortion(self, points, longtens=True):
 
     def test_pix2ray(self):
         rows = self.intr.resolution[0]

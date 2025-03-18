@@ -48,7 +48,7 @@ class Pose:
         self.device = device
 
     @staticmethod
-    def cvvecs2pose(rvec, tvec):
+    def cvvecs2pose(rvec, tvec, dtype=torch.float32):
         rot, _ = cv2.Rodrigues(rvec)
 
         # rot = rot.transpose()
@@ -70,10 +70,10 @@ class Pose:
         #     plotter.reset()
         # #     break
 
-        euler = eul(torch.zeros([3], dtype=torch.float32))
-        euler = euler.rot2eul(torch.from_numpy(rot))
+        euler = eul(torch.zeros([3], dtype=dtype))
+        euler = euler.rot2eul(torch.tensor(rot, dtype=dtype))
         # euler.e = euler.e[[1,0,2]]
-        position = torch.from_numpy(tvec).squeeze(-1)
+        position = torch.from_numpy(tvec).squeeze(-1).to(dtype)
         # pose = Pose(euler = euler, position = position.unsqueeze(0))
         pose = Pose(euler=euler, position=position)
         return pose
@@ -201,35 +201,14 @@ class Pose:
         )
         return pose
 
-        # if same_pose: new_pose = self.pose
-        # else: new_pose = cp.deepcopy(self.pose)
-
-        # if image_paths is None: image_paths = self.image_paths
-        # if name is None: name = self.name+"_copy"
-
-        # new_cam = Camera_cv(new_intr, new_pose, image_paths, self.frame, name, device = self.device, dtype=self.typ)
-        # return new_cam
-
-    # def to(self, device):
-    #     self.T = self.T.to(device)
-    #     self.device = device
-    #     return self
-    # def dtype(self, dtype):
-    #     self.T = self.T.to(dtype)
-    #     return self
-    # def invert(self):
-    #     self.T = self.get_inverse()
-    # def get_inverse(self):
-    #     R_inv = self.rotation().transpose(-2,-1)
-    #     t_inv = - R_inv @ self.location()
-    #     new_shape = list(R_inv.shape)
-    #     new_shape[-1]=4
-    #     new_shape[-2]=4
-    #     T_inv = torch.zeros( *new_shape , dtype= self.T.dtype)
-    #     T_inv[...,:3,:3] = R_inv
-    #     T_inv[...,:3,-1] = t_inv
-    #     T_inv[...,3,3] = 1
-    #     return T_inv
+    def __sub__(self, other) -> 'Pose':
+        assert type(other) == Pose
+        R = self.rotation().T @ other.rotation()
+        t = self.rotation().T @ (other.location() - self.location())
+        e = eul(torch.zeros([3], dtype=torch.float32))
+        e = e.rot2eul(R)
+        pose = Pose(euler=e, position=t)
+        return pose
 
     def __eq__(self, other):
         b1 = torch.equal(self.position, other.position)
@@ -239,32 +218,9 @@ class Pose:
     def __mul__(self, other):
 
         T_self = self.get_T()
-        # R_self = self.rotation()
-        # t_self = self.location()
-        # s_self = self.scale
         T_other = other.get_T()
-        # R_other = other.rotation()
-        # t_other = other.location()
-        # s_other = other.scale
-
         T = T_self @ T_other
         pose = Pose(T=T)
-        # R = pose.rotation()
-        # t = pose.location()
-
-        # R_ = R_self@R_other
-
-        # print(T_self)
-        # print(R_self)
-        # print(t_self)
-        # print(s_self)
-        # print(T_other)
-        # print(R_other)
-        # print(t_other)
-        # print(s_other)
-        # print(R)
-        # print(t)
-
         return pose
 
     @classmethod

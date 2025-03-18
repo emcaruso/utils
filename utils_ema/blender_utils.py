@@ -219,7 +219,6 @@ def generate_camera_from_camcv(cam, name):
     blender_camera_transform(camera_object)
     return camera_object, camera_data
 
-
 def set_object_pose(obj, pose: Pose):
     obj.rotation_mode = pose.euler.convention
     obj.matrix_world = Matrix(pose.get_T().detach().numpy())
@@ -235,6 +234,22 @@ def set_viewport_shading(mode):
                 if space.type == "VIEW_3D":  # Check if the space is a 3D Viewport space
                     space.shading.type = mode
 
+def put_cam_in_scene(scene, name: str="Cam", location=np.zeros(3), euler=np.zeros(3)):
+    cam_data = bpy.data.cameras.new(name=name+"_data")
+    cam_obj = bpy.data.objects.new(name=name, object_data=cam_data)
+    cam_obj.name = name
+    
+    # Set camera position and rotation
+    cam_obj.location = location
+    cam_obj.rotation_euler = euler
+    
+    # Link the camera to the scene
+    scene.collection.objects.link(cam_obj)
+    
+    # Set as active camera
+    scene.camera = cam_obj
+    
+    return cam_obj
 
 def put_plane_in_scene(scene, name="Plane", x_len=1, y_len=1):
     mesh = bpy.data.meshes.new(name=name+"Mesh")  # Create an empty mesh

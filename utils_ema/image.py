@@ -706,16 +706,25 @@ class Image:
         )
         return Image(img)
 
-    def draw_circles(self, centers, radius=3, color=(255, 0, 255), thickness=2):
+    def draw_lines(self, origin, end, color=(255, 0, 0), thickness=2):
+        img = self.img.numpy()
+        for i in range(len(origin)):
+            o = torch.trunc(origin[i]).type(torch.int32).detach().cpu().numpy()
+            e = torch.trunc(end[i]).type(torch.int32).detach().cpu().numpy()
+            cv2.line(img, o, e, color, thickness)
+        return Image(img)
+
+    def draw_circles(self, centers, radius=3, color=(255, 0, 255), thickness=-1):
         if isinstance(centers, np.ndarray):
             centers = torch.from_numpy(centers.astype(np.int32))
 
         # centers = centers.flip(dims=[-1])
-        centers = torch.flip(centers.type(torch.int32), dims=[-1])
+        # centers = torch.flip(centers.type(torch.int32), dims=[-1])
+        centers = torch.trunc(centers).type(torch.int32).detach().cpu().numpy()
 
         img = self.numpy()
         for center in centers:
-            cv2.circle(img, center.numpy(), radius, color, thickness)
+            cv2.circle(img, center, radius, color, thickness)
             # cv2.circle(img, (center[0],center[1]), radius, color, thickness)
             # cv2.circle(img, (100,100), radius, color, thickness)
         return Image(img)
@@ -757,7 +766,6 @@ class Image:
             plt.show()
         elif method == "cv2":
             img = Image(self.numpy())
-            coords = torch.flip(coords, dims=[-1])
             # for coord in coords:
             #     img.draw_circles(coord, radius=3, color=(0, 0, 255), thickness=-1)
             img.draw_circles(coords, radius=radius, color=color, thickness=-1)
