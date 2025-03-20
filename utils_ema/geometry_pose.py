@@ -27,16 +27,16 @@ class Pose:
         # scale=torch.ones([3], dtype=torch.float32),
         scale=torch.ones([1], dtype=torch.float32),
         units="meters",
-        device="cpu",
+        device=None,
     ):
         assert isinstance(euler, eul)
         assert torch.is_tensor(position)
 
         if T is not None:
             self.euler = euler
-            R = R = T[..., :3, :3]
-            if not eul.is_rotation_matrix(R):
-                raise ValueError("T has not a valid rotation matrix")
+            R = T[..., :3, :3]
+            # if not eul.is_rotation_matrix(R):
+            #     raise ValueError("T has not a valid rotation matrix")
             self.euler = self.euler.rot2eul(R=R)
             self.position = T[..., :3, -1]
         else:
@@ -45,7 +45,8 @@ class Pose:
         self.scale = scale.to(self.position.dtype)
 
         self.units = units
-        self.device = device
+        self.device = self.position.device if device is None else device
+        self.to(self.device)
 
     @staticmethod
     def cvvecs2pose(rvec, tvec, dtype=torch.float32):
@@ -148,6 +149,10 @@ class Pose:
         self.scale = self.scale.to(dtype)
         return self
 
+    def get_inverse_pose(self):
+        T_inv = self.get_T_inverse()
+        return Pose(T=T_inv, device=self.device)
+
     def invert(self):
         R = self.euler.eul2rot()
         R_t = R.transpose(-2, -1)
@@ -169,7 +174,7 @@ class Pose:
         new_shape = list(R.shape)
         new_shape[-1] = 4
         new_shape[-2] = 4
-        T = torch.zeros(*new_shape, dtype=t.dtype)
+        T = torch.zeros(*new_shape, dtype=t.dtype, device=t.device)
         T[..., :3, :3] = R
         T[..., :3, -1] = t
         T[..., 3, 3] = 1
@@ -177,13 +182,13 @@ class Pose:
 
     def get_T_inverse(self):
         R_inv = self.rotation().transpose(-2, -1)
-        t_inv = -R_inv @ self.location()
+        t_inv = -R_inv @ self.location().unsqueeze(-1)
         new_shape = list(R_inv.shape)
         new_shape[-1] = 4
         new_shape[-2] = 4
         T_inv = torch.zeros(*new_shape, dtype=self.get_T().dtype)
         T_inv[..., :3, :3] = R_inv
-        T_inv[..., :3, -1] = t_inv
+        T_inv[..., :3, -1] = t_inv.squeeze(-1)
         T_inv[..., 3, 3] = 1
         return T_inv
 

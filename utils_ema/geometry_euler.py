@@ -124,10 +124,10 @@ class eul:
 
     @staticmethod
     def rot2eul_YXZ(R=torch.eye(3)):
-        e1 = torch.atan2(R[..., 0, 2], R[..., 2, 2] + 1e-6)
+        e1 = torch.atan2(R[..., 0, 2], R[..., 2, 2])
         e2 = torch.asin(-R[..., 1, 2])
-        e3 = torch.atan2(R[..., 1, 0], R[..., 1, 1] + 1e-6)
-        e_flat = torch.cat((e1.unsqueeze(-1), e2.unsqueeze(-1), e3.unsqueeze(-1)))
+        e3 = torch.atan2(R[..., 1, 0], R[..., 1, 1])
+        e_flat = torch.cat((e1.unsqueeze(-1), e2.unsqueeze(-1), e3.unsqueeze(-1)), dim=-1)
         euler = eul(e_flat)
         return euler
 

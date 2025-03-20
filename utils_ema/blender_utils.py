@@ -44,7 +44,7 @@ def stdout_redirected(to=os.devnull):
             # buffering and flags such as
             # CLOEXEC may be different
 
-
+True
 # def launch_blender_script( blend_file, script_path):
 #     os.system("blender "+ blend_file +" --background --python "+script_path)
 
@@ -197,9 +197,10 @@ def generate_camera_from_camcv(cam, name):
     cam.name = name
     camera_data = bpy.data.cameras.new(name=cam.name)
     camera_data.sensor_width = cam.intr.sensor_size[0] * 1000
+
     camera_object = bpy.data.objects.new(cam.name, camera_data)
-    bpy.context.scene.render.resolution_x = cam.intr.resolution[0]
-    bpy.context.scene.render.resolution_y = cam.intr.resolution[1]
+    bpy.context.scene.render.resolution_x = int(cam.intr.resolution[0].item())
+    bpy.context.scene.render.resolution_y = int(cam.intr.resolution[1].item())
     K = cam.intr.K_und
     K_pix = cam.intr.K_pix_und
 
@@ -215,13 +216,14 @@ def generate_camera_from_camcv(cam, name):
 
     camera_data.lens = lens
     # extrinsics
-    camera_object.matrix_world = Matrix(cam.pose.get_T().numpy())
+    camera_object.matrix_world = Matrix(cam.pose.get_T().detach().cpu().numpy())
+    camera_data.display_size = 0.1
     blender_camera_transform(camera_object)
     return camera_object, camera_data
 
 def set_object_pose(obj, pose: Pose):
     obj.rotation_mode = pose.euler.convention
-    obj.matrix_world = Matrix(pose.get_T().detach().numpy())
+    obj.matrix_world = Matrix(pose.get_T().detach().cpu().numpy())
     obj.scale = np.ones(3) * pose.scale.detach().item()
     # obj.location = pose.location().numpy()
     # obj.rotation_euler = pose.euler.e.numpy()
@@ -234,55 +236,22 @@ def set_viewport_shading(mode):
                 if space.type == "VIEW_3D":  # Check if the space is a 3D Viewport space
                     space.shading.type = mode
 
-def put_cam_in_scene(scene, name: str="Cam", location=np.zeros(3), euler=np.zeros(3)):
-    cam_data = bpy.data.cameras.new(name=name+"_data")
-    cam_obj = bpy.data.objects.new(name=name, object_data=cam_data)
-    cam_obj.name = name
-    
-    # Set camera position and rotation
-    cam_obj.location = location
-    cam_obj.rotation_euler = euler
+def put_cam_in_scene(scene, camera: Camera_cv):
+
+    cam_obj, _ = generate_camera_from_camcv(camera, name=camera.name)
     
     # Link the camera to the scene
     scene.collection.objects.link(cam_obj)
     
-    # Set as active camera
-    scene.camera = cam_obj
-    
     return cam_obj
 
 def put_plane_in_scene(scene, name="Plane", x_len=1, y_len=1):
-    mesh = bpy.data.meshes.new(name=name+"Mesh")  # Create an empty mesh
-    obj = bpy.data.objects.new(
-        name=name, object_data=mesh
-    )  # Create an object using the mesh
-
-    # Create a plane geometry and assign it to the mesh
-    vertices = [  # Define the 4 vertices of the plane
-        (-x_len, -y_len, 0),
-        (x_len, -y_len, 0),
-        (x_len, y_len, 0),
-        (-x_len, y_len, 0),
-    ]
-    faces = [(0, 1, 2, 3)]  # Define the 4 faces of the plane
-    mesh.from_pydata(vertices, [], faces)
-
-    # Create UV mapping
-    uv_layer = mesh.uv_layers.new(name="UVMap")  # Add a new UV map to the mesh
-    uv_data = uv_layer.data
-    uv_coords = [
-        (0.0, 0.0),  # Vertex 0: bottom-left
-        (1.0, 0.0),  # Vertex 1: bottom-right
-        (1.0, 1.0),  # Vertex 2: top-right
-        (0.0, 1.0),  # Vertex 3: top-left
-    ]
-    for i, face in enumerate(faces):
-        for j, vertex_index in enumerate(face):
-            uv_data[i * len(face) + j].uv = uv_coords[vertex_index]
-
-    scene.collection.objects.link(obj)
-
-    return obj
+    bpy.ops.mesh.primitive_plane_add(size=1, location=(0, 0, 0))
+    plane = bpy.context.object
+    plane.scale.x = x_len  # Set width to 3
+    plane.scale.y = y_len  # Set height to 2
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    return plane
 
 def set_object_texture(obj, image_path, name):
 
@@ -302,6 +271,24 @@ def set_object_texture(obj, image_path, name):
         obj.data.materials.append(material)
 
 
+def set_background_images(camera_object, directory):
+    dir = Path(directory)
+    filepath = str(sorted( dir.iterdir() )[0])
+    bpy.data.images.load(filepath=filepath)
+    img = bpy.data.images["000.png"]
+    img.name = camera_object.name + "_" + img.name
+
+    # img.name = name
+    img.source = "SEQUENCE"
+    bg = camera_object.data.background_images.new()
+    bg.image = img
+    bg.display_depth = "FRONT"
+    b = camera_object.data.background_images[-1]
+    img_user = b.image_user
+    img_user.frame_start = 0
+    img_user.frame_offset = -1
+    img_user.frame_duration = len(list(os.listdir(directory)))
+    camera_object.data.show_background_images = True
 
 # def generate_camera_from_camcv(cam, name):
 #     cam.name = name

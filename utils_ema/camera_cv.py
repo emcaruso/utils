@@ -100,7 +100,7 @@ class Intrinsics:
         fy = self.K_params[...,1]
         cx = self.K_params[...,2]
         cy = self.K_params[...,3]
-        zero = torch.zeros_like(fx)
+        zero = torch.zeros_like(fx, device=self.device)
         K = torch.stack([
             torch.stack([fx, zero, cx], dim=-1),
             torch.stack([zero, fy, cy], dim=-1),
@@ -143,7 +143,7 @@ class Intrinsics:
                 K_pix_und[..., 0, 0] = lens
                 K_pix_und[..., 1, 1] = lens
 
-            K_und = K_pix_und * self.unit_pixel_ratio().cpu().unsqueeze(-1)
+            K_und = K_pix_und * self.unit_pixel_ratio().unsqueeze(-1)
             K_und[..., 2, 2] = 1
         else:
             K_und = self.get_K()
@@ -201,17 +201,13 @@ class Intrinsics:
         return (self.fx() + self.fy()) / 2
 
     def to(self, device):
+        self.device = device
+        self.resolution = self.resolution.to(device)
+        self.sensor_size = self.sensor_size.to(device)
         self.K_params = self.K_params.to(device)
         if self.D_params is not None:
             self.D_params = self.D_params.to(device)
-        self.K_pix = self.K_pix.to(device)
-        if self.K_und is not None:
-            self.K_und = self.K_und.to(device)
-        if self.K_pix_und is not None:
-            self.K_pix_und = self.K_pix_und.to(device)
-        self.resolution = self.resolution.to(device)
-        self.sensor_size = self.sensor_size.to(device)
-        self.device = device
+        self.update_intrinsics()
         return self
 
     def type(self, dtype):
@@ -499,12 +495,12 @@ class Camera_cv:
         assert points.shape[-1] == 3
         points = points.to(self.dtype)
         if transform_cam_pose is not None:
-            pose = transform_cam_pose * self.pose
+            pose = self.pose.get_inverse_pose() * transform_cam_pose
         else:
-            pose = self.pose
+            pose = self.pose.get_inverse_pose()
         # T = self.pose.get_T_inverse()
-        R_inv = pose.get_R_inv()
-        t_inv = pose.get_t_inv()
+        R_inv = pose.rotation()
+        t_inv = pose.location()
 
         # points_wrt_cam = torch.matmul( points, T[...,:3,:3].transpose(-2,-1) ) + T[...,:3,-1]
         points_wrt_cam = torch.matmul(points, R_inv.transpose(-2, -1)) + t_inv.unsqueeze(-2)
@@ -560,8 +556,8 @@ class Camera_cv:
         if self.intr.D_params is None:
             return points
 
-        k1, k2, p1, p2, k3 = torch.unbind(self.intr.D_params, dim=-1)
-        fx, fy, cx, cy = torch.unbind(self.intr.K_params * self.intr.pixel_unit_ratio(), dim=-1)
+        k1, k2, p1, p2, k3 = torch.unbind(self.intr.D_params.unsqueeze(-2), dim=-1)
+        fx, fy, cx, cy = torch.unbind((self.intr.K_params * self.intr.pixel_unit_ratio()).unsqueeze(-2), dim=-1)
 
         # Normalize to camera coordinates
         x_n = (points[..., 0] - cx) / fx
@@ -588,7 +584,9 @@ class Camera_cv:
         u_d = x_d * fx + cx
         v_d = y_d * fy + cy
 
-        return torch.stack((u_d, v_d), dim=-1)
+        out = torch.stack((u_d, v_d), dim=-1)
+
+        return out
          
 
     def test_pix2ray(self):
