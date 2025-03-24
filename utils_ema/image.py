@@ -17,9 +17,9 @@ import multiprocessing as mp
 
 try:
     from .general import get_monitor, run_in_parallel
-    from .multiprocess import __safe_wrapper, __unpack, map_unordered
+    from .multiprocessing import __safe_wrapper, __unpack, map_unordered
 except:
-    from multiprocess import __safe_wrapper, __unpack, map_unordered
+    from multiprocessing import __safe_wrapper, __unpack, map_unordered
     from general import get_monitor, run_in_parallel
 
 m = get_monitor()
