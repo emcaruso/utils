@@ -2,13 +2,8 @@ import numpy as np
 import sys, os
 import torch
 import time
-
-try:
-    from .user_interface import User
-    from .geometry_direction import Direction
-except:
-    from user_interface import User
-    from geometry_direction import Direction
+from utils_ema.user_interface import User
+from utils_ema.geometry_direction import Direction
 
 class MoverOrbital():
 

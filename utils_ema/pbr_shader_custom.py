@@ -7,25 +7,15 @@ import math
 import cv2
 import torch
 from tqdm import tqdm
-try:
-    from .geometry_SG import SphericalGaussians
-    from .geometry_direction import Direction
-    from .geometry_euler import eul
-    from .user_mover import MoverOrbital
-    from .image import Image
-    from .pbr_material import PBR_Material
-    from .plot import plotter
-    from .diff_renderer import Renderer
-    from .user_interface import User
-except:
-    from geometry_SG import SphericalGaussians
-    from geometry_direction import Direction
-    from user_mover import MoverOrbitgal
-    from image import Image
-    from pbr_material import PBR_Material
-    from plot import plotter
-    from diff_renderer import Renderer
-    from user_interface import User
+from utils_ema.geometry_SG import SphericalGaussians
+from utils_ema.geometry_direction import Direction
+from utils_ema.geometry_euler import eul
+from utils_ema.user_mover import MoverOrbital
+from utils_ema.image import Image
+from utils_ema.pbr_material import PBR_Material
+from utils_ema.plot import plotter
+from utils_ema.diff_renderer import Renderer
+from utils_ema.user_interface import User
 
 TINY_NUMBER = 1e-5
 

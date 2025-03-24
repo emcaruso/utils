@@ -1,10 +1,6 @@
 import torch
 import numpy as np
-
-try:
-    from .geometry_quaternion import Quat
-except:
-    from geometry_quaternion import Quat
+from utils_ema.geometry_quaternion import Quat
 
 
 class eul:

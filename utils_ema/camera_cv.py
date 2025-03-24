@@ -3,25 +3,11 @@ import torch
 import sys, os
 import copy as cp
 from typing import Union
-
-try:
-    from .geometry_pose import *
-    from .plot import *
-    from .torch_utils import *
-    from .general import *
-    from .image import *
-
-    # try: from .diff_renderer import *
-    # except: pass
-except:
-    from geometry_pose import *
-    from plot import *
-    from torch_utils import *
-    from general import *
-    from image import *
-
-    # try: from diff_renderer import *
-    # except: pass
+from utils_ema.geometry_pose import *
+from utils_ema.plot import *
+from utils_ema.torch_utils import *
+from utils_ema.general import *
+from utils_ema.image import *
 
 
 class Camera_opencv:

@@ -3,8 +3,6 @@ import nvdiffrast.torch as dr
 import torch
 from utils_ema.image import Image
 from utils_ema.texture import Texture
-
-# from utils_ema.pbr_shader import PBR_Shader
 from utils_ema.torch_utils import get_device
 import os
 

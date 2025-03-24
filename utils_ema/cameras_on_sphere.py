@@ -2,15 +2,8 @@ import cv2
 import torch
 import sys, os
 import copy as cp
-
-try:
-    from .camera_cv import *
-    from .geometry_direction import Direction
-    except: pass
-except:
-    from camera_cv import *
-    from geometry_direction import Direction
-    except: pass
+from utils_ema.camera_cv import *
+from utils_ema.geometry_direction import Direction
 
 class CamerasOnSphere():
     def __init__(self, cfg, device='cpu'):

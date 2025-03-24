@@ -5,10 +5,7 @@ from pypylon import genicam
 import sys
 import cv2
 
-try:
-    from .image import *
-except:
-    from image import *
+from utils_ema.image import *
 from utils_ema.general import get_monitor
 import pprint
 

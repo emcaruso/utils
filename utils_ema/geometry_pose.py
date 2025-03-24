@@ -7,14 +7,8 @@ import math
 import sys, os
 import copy as cp
 from itertools import permutations
-
-
-try:
-    from .geometry_euler import eul
-    from .plot import *
-except:
-    from geometry_euler import eul
-    from plot import *
+from utils_ema.geometry_euler import eul
+from utils_ema.plot import *
 
 
 class Pose:

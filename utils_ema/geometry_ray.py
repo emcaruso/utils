@@ -5,15 +5,9 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import math
 import sys, os
-
-try:
-    from .geometry_pose import *
-    from .geometry_direction import Direction
-    from .plot import *
-except:
-    from geometry_pose import *
-    from geometry_direction import Direction
-    from plot import *
+from utils_ema.geometry_pose import *
+from utils_ema.geometry_direction import Direction
+from utils_ema.plot import *
 
 
 class Ray():

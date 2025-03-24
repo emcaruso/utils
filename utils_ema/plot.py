@@ -1,16 +1,9 @@
 import plotly.graph_objects as go
 import wandb
-
-try:
-    from .geometry_pose import *
-    from .geometry_euler import *
-    from .geometry_sphere import *
-    from .torch_utils import *
-except:
-    from geometry_pose import *
-    from geometry_euler import *
-    from geometry_sphere import *
-    from torch_utils import *
+from utils_ema.geometry_pose import *
+from utils_ema.geometry_euler import *
+from utils_ema.geometry_sphere import *
+from utils_ema.torch_utils import *
 
 
 class plotter:

@@ -1,3 +1,4 @@
+import os, sys
 from logging import raiseExceptions
 import time
 import cv2
@@ -13,12 +14,7 @@ from scipy.ndimage import distance_transform_edt
 from scipy.ndimage import label, center_of_mass
 from pathlib import Path
 import multiprocessing as mp
-
-
-try:
-    from .general import get_monitor
-except:
-    from general import get_monitor
+from utils_ema.general import get_monitor
 
 m = get_monitor()
 

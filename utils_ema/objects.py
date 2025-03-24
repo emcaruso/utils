@@ -1,10 +1,6 @@
 import copy as cp
 import os
-
-try:
-    from .mesh import Mesh, AABB, read_mesh
-except:
-    from mesh import Mesh, AABB, read_mesh
+from utils_ema.mesh import Mesh, AABB, read_mesh
 
 
 class Object:

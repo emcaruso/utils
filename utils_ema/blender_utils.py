@@ -10,7 +10,6 @@ import sys
 import torch
 import numpy as np
 from mathutils import Matrix, Vector
-
 from utils_ema.camera_cv import *
 from utils_ema.geometry_pose import Pose
 

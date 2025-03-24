@@ -6,15 +6,9 @@ from mpl_toolkits.mplot3d import Axes3D
 import sys, os
 import copy as cp
 from itertools import permutations
-
-try:
-    from .geometry_euler import eul
-    from .geometry_pose import Pose
-    from .plot import *
-except:
-    from geometry_euler import eul
-    from geometry_pose import Pose
-    from plot import *
+from utils_ema.geometry_euler import eul
+from utils_ema.geometry_pose import Pose
+from utils_ema.plot import *
 
 class Plane():
 
