@@ -14,14 +14,6 @@ from scipy.ndimage import label, center_of_mass
 from pathlib import Path
 import multiprocessing as mp
 
-
-try:
-    from .general import get_monitor, run_in_parallel
-    from .multiprocessing import __safe_wrapper, __unpack, map_unordered
-except:
-    from multiprocessing import __safe_wrapper, __unpack, map_unordered
-    from general import get_monitor, run_in_parallel
-
 m = get_monitor()
 
 
