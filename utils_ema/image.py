@@ -13,6 +13,7 @@ from scipy.ndimage import distance_transform_edt
 from scipy.ndimage import label, center_of_mass
 from pathlib import Path
 import multiprocessing as mp
+from general import get_monitor
 
 m = get_monitor()
 
