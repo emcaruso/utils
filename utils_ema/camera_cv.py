@@ -102,7 +102,7 @@ class Intrinsics:
         return K_pix
 
     # Get K_und and K_pix_und from params (NON differentiable)
-    def get_K_und(self, alpha=0, central_pp=False, same_fx_fy=True):
+    def get_K_und(self, alpha=0, central_pp=False, same_fx_fy=False):
         K_pix_und = None
         K_und = None
         roi_und = None
@@ -137,12 +137,14 @@ class Intrinsics:
 
         return K_und, K_pix_und, roi_und
 
+
     def compute_undistortion_map(self):
         try:
             D = None
             if self.D_params is not None:
                 D = self.D_params.numpy()
 
+            # undistortion map
             self.undist_map = cv2.initUndistortRectifyMap(
                 self.K_pix.numpy(),
                 D,
@@ -217,9 +219,11 @@ class Intrinsics:
             self.K_und[..., :2, -1] *= s
 
     def undistort_image(self, img):
+
         undistorted = cv2.remap(
             img.numpy(), self.undist_map[0], self.undist_map[1], cv2.INTER_LINEAR
         )
+        
         img_und = Image(torch.from_numpy(undistorted))
 
         # x,y,w,h = self.roi_und
