@@ -4,34 +4,39 @@ from utils_ema.geometry_quaternion import Quat
 
 
 class eul:
-    def __init__(self, e=torch.zeros([3]), convention="YXZ", device="cpu"):
-        if isinstance(e, np.ndarray):
-            e = torch.from_numpy(e)
-        self.e = e
+    def __init__(self, params=None, convention="YXZ", device="cpu"):
+        if params is None:
+            params = torch.zeros([3])
+        if isinstance(params, np.ndarray):
+            params = torch.from_numpy(params)
+        self.params = params
         self.convention = convention
         self.device = device
 
     def to(self, device):
-        self.e = self.e.to(device)
+        self.params = self.params.to(device)
         self.device = device
         return self
 
+    def to_quat(self):
+        return Quat.from_rot(self.to_rot())
+
     def normalize_angles(self):
-        return (self.e + torch.pi) % (2 * torch.pi) - torch.pi
+        return (self.params + torch.pi) % (2 * torch.pi) - torch.pi
 
     def rotate_by_R(self, R):
         # new_rot = R @ self.eul2rot()
         new_rot = self.eul2rot() @ R
         new_eul = self.rot2eul(new_rot)
-        self.e = new_eul.e
+        self.params = new_eul.params
 
     def eul2quat_YXZ(self):
-        c1 = torch.cos(self.e[..., 1] / 2.0)
-        c2 = torch.cos(self.e[..., 0] / 2.0)
-        c3 = torch.cos(self.e[..., 2] / 2.0)
-        s1 = torch.sin(self.e[..., 1] / 2.0)
-        s2 = torch.sin(self.e[..., 0] / 2.0)
-        s3 = torch.sin(self.e[..., 2] / 2.0)
+        c1 = torch.cos(self.params[..., 1] / 2.0)
+        c2 = torch.cos(self.params[..., 0] / 2.0)
+        c3 = torch.cos(self.params[..., 2] / 2.0)
+        s1 = torch.sin(self.params[..., 1] / 2.0)
+        s2 = torch.sin(self.params[..., 0] / 2.0)
+        s3 = torch.sin(self.params[..., 2] / 2.0)
 
         # Quaternion components based on YXZ rotation sequence
         w = c1 * c2 * c3 - s1 * s2 * s3
@@ -45,12 +50,12 @@ class eul:
         if self.convention == "YXZ":
             return self.eul2quat_YXZ()
 
-    def rotate_by_euler(self, e):
-        self.rotate_by_R(e.eul2rot())
+    def rotate_by_euler(self, params):
+        self.rotate_by_R(params.eul2rot())
 
     def get_cs(self):
-        c = torch.cos(self.e)
-        s = torch.sin(self.e)
+        c = torch.cos(self.params)
+        s = torch.sin(self.params)
         c1 = c[..., 0]
         c2 = c[..., 1]
         c3 = c[..., 2]
@@ -81,12 +86,12 @@ class eul:
         )
         rot = torch.cat((r1.unsqueeze(-1), r2.unsqueeze(-1), r3.unsqueeze(-1)), dim=-1)
         rot = rot.transpose(-2, -1)
-        rot = rot.to(self.e.device)
+        rot = rot.to(self.params.device)
         return rot
 
     def eul2rot_YX(self):  # Y=azimuth X=elevation (no roll)
-        c = torch.cos(self.e)
-        s = torch.sin(self.e)
+        c = torch.cos(self.params)
+        s = torch.sin(self.params)
         c1 = c[..., 0]
         c2 = c[..., 1]
         s1 = s[..., 0]
@@ -118,6 +123,9 @@ class eul:
         elif self.convention == "YX":
             return self.eul2rot_YX()
 
+    def to_rot(self):
+        return self.eul2rot()
+
     @staticmethod
     def rot2eul_YXZ(R=torch.eye(3)):
         e1 = torch.atan2(R[..., 0, 2], R[..., 2, 2])
@@ -126,6 +134,13 @@ class eul:
         e_flat = torch.cat((e1.unsqueeze(-1), e2.unsqueeze(-1), e3.unsqueeze(-1)), dim=-1)
         euler = eul(e_flat)
         return euler
+
+    @classmethod
+    def from_rot(cls, R: torch.Tensor):
+        assert R.shape[-2:] == (3, 3)
+        assert torch.allclose(R.det(), torch.tensor(1.0))
+        return cls.rot2eul_YXZ(R)
+
 
     def dist(self, other):
         q1 = self.eul2quat()

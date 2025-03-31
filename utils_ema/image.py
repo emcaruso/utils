@@ -767,6 +767,11 @@ class Image:
             return key
 
     @classmethod
+    def save_multiple_images(cls, images, paths, verbose=False):
+        for img, path in zip(images, paths):
+            img.save(path, verbose)
+
+    @classmethod
     def show_multiple_images(
         cls, images, wk=0, name="image", undistort=None, cams=None
     ):
