@@ -17,13 +17,13 @@ class Pose:
 
     def __init__(
         self,
-        orientation: Union[eul,Quat] = Quat(torch.zeros([4], dtype=torch.float32)),
+        orientation: Union[eul, Quat] = Quat(torch.zeros([4], dtype=torch.float32)),
         position=torch.zeros([3], dtype=torch.float32),
         scale=torch.ones([1], dtype=torch.float32),
         units="meters",
         device=None,
     ):
-        assert orientation.__class__ in[eul, Quat]
+        assert orientation.__class__ in [eul, Quat]
         assert torch.is_tensor(position)
 
         self.orientation = orientation
@@ -41,8 +41,6 @@ class Pose:
             orientation = Quat.from_rot(R)
         position = T[..., :3, -1]
         return cls(position=position, orientation=orientation)
-
-
 
     @staticmethod
     def cvvecs2pose(rvec, tvec, dtype=torch.float32, orientation_cls=Quat):
@@ -135,7 +133,9 @@ class Pose:
         R = self.rotation()
         R_inv = self.rotation().transpose(-2, -1)
         t_inv = -R_inv @ self.location().unsqueeze(-1)
-        return Pose(orientation=self.orientation_cls.from_rot(R_inv), position=t_inv.squeeze(-1))
+        return Pose(
+            orientation=self.orientation_cls.from_rot(R_inv), position=t_inv.squeeze(-1)
+        )
         # return Pose.from_T(T=T_inv)
 
     def invert(self):
@@ -192,7 +192,7 @@ class Pose:
         )
         return pose
 
-    def __sub__(self, other) -> 'Pose':
+    def __sub__(self, other) -> "Pose":
         assert type(other) == Pose
         R = self.rotation().T @ other.rotation()
         t = self.rotation().T @ (other.location() - self.location())

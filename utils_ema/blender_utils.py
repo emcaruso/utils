@@ -43,6 +43,7 @@ def stdout_redirected(to=os.devnull):
             # buffering and flags such as
             # CLOEXEC may be different
 
+
 True
 # def launch_blender_script( blend_file, script_path):
 #     os.system("blender "+ blend_file +" --background --python "+script_path)
@@ -220,8 +221,9 @@ def generate_camera_from_camcv(cam, name):
     blender_camera_transform(camera_object)
     return camera_object, camera_data
 
+
 def set_object_pose(obj, pose: Pose):
-    obj.rotation_mode = pose.euler.convention
+    obj.rotation_mode = "YXZ"
     obj.matrix_world = Matrix(pose.get_T().detach().cpu().numpy())
     obj.scale = np.ones(3) * pose.scale.detach().item()
     # obj.location = pose.location().numpy()
@@ -235,14 +237,16 @@ def set_viewport_shading(mode):
                 if space.type == "VIEW_3D":  # Check if the space is a 3D Viewport space
                     space.shading.type = mode
 
+
 def put_cam_in_scene(scene, camera: Camera_cv):
 
     cam_obj, _ = generate_camera_from_camcv(camera, name=camera.name)
-    
+
     # Link the camera to the scene
     scene.collection.objects.link(cam_obj)
-    
+
     return cam_obj
+
 
 def put_plane_in_scene(scene, name="Plane", x_len=1, y_len=1):
     bpy.ops.mesh.primitive_plane_add(size=1, location=(0, 0, 0))
@@ -251,6 +255,7 @@ def put_plane_in_scene(scene, name="Plane", x_len=1, y_len=1):
     plane.scale.y = y_len  # Set height to 2
     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
     return plane
+
 
 def set_object_texture(obj, image_path, name):
 
@@ -272,7 +277,7 @@ def set_object_texture(obj, image_path, name):
 
 def set_background_images(camera_object, directory):
     dir = Path(directory)
-    filepath = str(sorted( dir.iterdir() )[0])
+    filepath = str(sorted(dir.iterdir())[0])
     bpy.data.images.load(filepath=filepath)
     img = bpy.data.images["000.png"]
     img.name = camera_object.name + "_" + img.name
@@ -288,6 +293,7 @@ def set_background_images(camera_object, directory):
     img_user.frame_offset = -1
     img_user.frame_duration = len(list(os.listdir(directory)))
     camera_object.data.show_background_images = True
+
 
 # def generate_camera_from_camcv(cam, name):
 #     cam.name = name

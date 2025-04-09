@@ -4,7 +4,9 @@ from logging import Logger
 from pathlib import Path
 
 
-def get_logger_default(out_path : str = str(Path(__file__).parent / "run.log") ) -> Logger:
+def get_logger_default(
+    out_path: str = str(Path(__file__).parent / "run.log"),
+) -> Logger:
     """
     Initialize the global logger with custom settings.
     """
@@ -14,7 +16,9 @@ def get_logger_default(out_path : str = str(Path(__file__).parent / "run.log") )
     logger.setLevel(logging.DEBUG)
 
     # Create the log format
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
 
     # create log file if not exists
     if not os.path.exists(os.path.dirname(out_path)):
@@ -22,7 +26,7 @@ def get_logger_default(out_path : str = str(Path(__file__).parent / "run.log") )
     print(out_path)
     if not os.path.exists(out_path):
         os.system(f"touch {out_path}")
-     
+
     fh = logging.FileHandler(out_path)
     fh.setLevel(logging.DEBUG)
     fh.setFormatter(formatter)
@@ -35,4 +39,3 @@ def get_logger_default(out_path : str = str(Path(__file__).parent / "run.log") )
     logger.addHandler(ch)
 
     return logger
-

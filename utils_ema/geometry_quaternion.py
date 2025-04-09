@@ -1,10 +1,11 @@
 import torch
 import numpy as np
 
-class Quat():
+
+class Quat:
     def __init__(self, params=None, device=None, dtype=None):
         if params is None:
-            params = torch.tensor([1,0,0,0], dtype=torch.float32, device="cpu")
+            params = torch.tensor([1, 0, 0, 0], dtype=torch.float32, device="cpu")
         if device is None:
             device = params.device
         if dtype is None:
@@ -18,7 +19,12 @@ class Quat():
     def from_rot(cls, R: torch.Tensor):
         # Ensure the rotation matrix is valid
         assert R.shape[-2:] == (3, 3)
-        assert torch.allclose(R.det(), torch.tensor(1.0, dtype=R.dtype, device=R.device))
+        if not torch.allclose(
+            R.det(), torch.tensor(1.0, dtype=R.dtype, device=R.device)
+        ):
+            raise ValueError(
+                f"The input matrix {R} is not a valid rotation matrix (det != 1)."
+            )
         # Compute the quaternion components
         trace = R[..., 0, 0] + R[..., 1, 1] + R[..., 2, 2]
         w = torch.sqrt(torch.clamp(1 + trace, min=1e-6)) / 2
@@ -30,7 +36,10 @@ class Quat():
         return q
 
     def is_normalized(self):
-        return torch.allclose(torch.norm(self.params, dim=-1), torch.tensor(1.0, dtype=self.params.dtype, device=self.params.device))
+        return torch.allclose(
+            torch.norm(self.params, dim=-1),
+            torch.tensor(1.0, dtype=self.params.dtype, device=self.params.device),
+        )
 
     def normalize_data(self):
         self.params.data = self.normalized_params().data
@@ -38,21 +47,21 @@ class Quat():
 
     def normalized_params(self):
         norm = torch.norm(self.params, dim=-1, keepdim=True)
-        eps = 0
+        eps = 1e-6
         if torch.any(norm < eps):  # Avoid dividing by very small numbers
             return self.params / (norm + eps)  # Safeguard against tiny values
         else:
             return self.params / norm
-    
+
     def to_rot(self):
-        ''' convert the quaternion to a rotation matrix '''
+        """convert the quaternion to a rotation matrix"""
 
         # Ensure the quaternion is normalized
         quat = self.normalized_params()
 
         # Extract components
         w, x, y, z = quat[..., 0], quat[..., 1], quat[..., 2], quat[..., 3]
-        
+
         # Compute rotation matrix
         R = torch.zeros(quat.shape[:-1] + (3, 3), dtype=quat.dtype, device=quat.device)
         R[..., 0, 0] = 1 - 2 * y * y - 2 * z * z
@@ -64,10 +73,8 @@ class Quat():
         R[..., 2, 0] = 2 * x * z - 2 * w * y
         R[..., 2, 1] = 2 * y * z + 2 * w * x
         R[..., 2, 2] = 1 - 2 * x * x - 2 * y * y
-        
+
         return R
-
-
 
     def to(self, device):
         self.params = self.params.to(device)
@@ -98,8 +105,18 @@ class Quat():
 
     def __mul__(self, other):
         # Extract components
-        w1, x1, y1, z1 = self.params[..., 0], self.params[..., 1], self.params[..., 2], self.params[..., 3]
-        w2, x2, y2, z2 = other.params[..., 0], other.params[..., 1], other.params[..., 2], other.params[..., 3]
+        w1, x1, y1, z1 = (
+            self.params[..., 0],
+            self.params[..., 1],
+            self.params[..., 2],
+            self.params[..., 3],
+        )
+        w2, x2, y2, z2 = (
+            other.params[..., 0],
+            other.params[..., 1],
+            other.params[..., 2],
+            other.params[..., 3],
+        )
 
         # Compute components of the product
         w = w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
@@ -111,7 +128,7 @@ class Quat():
 
     def dist(self, q2):
         q1_inv = self.get_inv()
-        q_dist = q2*q1_inv
+        q_dist = q2 * q1_inv
         # q_dist = self*q2
         _, angle = q_dist.quat2axis_angle()
         return angle
