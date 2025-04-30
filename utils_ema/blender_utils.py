@@ -192,7 +192,7 @@ def collect_objects_in_collection(collection_name):
 def generate_camera_from_camcv(cam, name):
     cam.name = name
     camera_data = bpy.data.cameras.new(name=cam.name)
-    camera_data.sensor_width = cam.intr.sensor_size[0] * 1000
+    camera_data.sensor_width = cam.intr.sensor_size[1] * 1000
 
     camera_object = bpy.data.objects.new(cam.name, camera_data)
     bpy.context.scene.render.resolution_x = int(cam.intr.resolution[1].item())
