@@ -210,7 +210,7 @@ def generate_camera_from_camcv(cam, name):
     camera_data.shift_y = (
         (K_pix[1, 2] - (cam.intr.resolution[0] / 2))
         / (cam.intr.resolution[0])
-        * asp_ratio
+        / asp_ratio
     )
 
     camera_data.lens = lens
