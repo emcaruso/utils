@@ -108,7 +108,6 @@ def delete_collection(collection_name):
 
 
 def set_collection_hide_val(collection_name, val, ignore_errors=False):
-
     if not ignore_errors:
         # Check if the collection already exists
         if collection_name not in bpy.data.collections:
@@ -119,7 +118,6 @@ def set_collection_hide_val(collection_name, val, ignore_errors=False):
 
 
 def create_collection(collection_name):
-
     # Check if the collection already exists
     if collection_name in bpy.data.collections:
         print(f"Collection '{collection_name}' already exists.")
@@ -163,7 +161,6 @@ def clear_animation_data(obj):
 
 
 def insert_objects_into_collection_byname(collection_name, object_names):
-
     # Link objects to the collection
     for object_name in object_names:
         if object_name in bpy.data.objects:
@@ -193,22 +190,21 @@ def collect_objects_in_collection(collection_name):
 
 
 def generate_camera_from_camcv(cam, name):
-
     cam.name = name
     camera_data = bpy.data.cameras.new(name=cam.name)
     camera_data.sensor_width = cam.intr.sensor_size[0] * 1000
 
     camera_object = bpy.data.objects.new(cam.name, camera_data)
-    bpy.context.scene.render.resolution_x = int(cam.intr.resolution[0].item())
-    bpy.context.scene.render.resolution_y = int(cam.intr.resolution[1].item())
+    bpy.context.scene.render.resolution_x = int(cam.intr.resolution[1].item())
+    bpy.context.scene.render.resolution_y = int(cam.intr.resolution[0].item())
     K = cam.intr.K_und
     K_pix = cam.intr.K_pix_und
 
     lens = ((K[0, 0] + K[1, 1]) / 2) * 1000
 
     # access the camera shift x and y
-    camera_data.shift_x = -(K_pix[0, 2] - cam.intr.resolution[0] / 2) / (
-        cam.intr.resolution[0]
+    camera_data.shift_x = (
+        -(K_pix[0, 2] - cam.intr.resolution[0] / 2) / (cam.intr.resolution[0])
     )
     camera_data.shift_y = (K_pix[1, 2] - cam.intr.resolution[1] / 2) / (
         cam.intr.resolution[1]
@@ -239,7 +235,6 @@ def set_viewport_shading(mode):
 
 
 def put_cam_in_scene(scene, camera: Camera_cv):
-
     cam_obj, _ = generate_camera_from_camcv(camera, name=camera.name)
 
     # Link the camera to the scene
@@ -258,7 +253,6 @@ def put_plane_in_scene(scene, name="Plane", x_len=1, y_len=1):
 
 
 def set_object_texture(obj, image_path, name):
-
     image_bpy = bpy.data.images.load(image_path)
     image_bpy.name = name
 
