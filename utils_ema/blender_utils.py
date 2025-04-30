@@ -207,6 +207,7 @@ def generate_camera_from_camcv(cam, name):
     camera_data.shift_x = (
         -(K_pix[0, 2] - (cam.intr.resolution[1] / 2)) / (cam.intr.resolution[1])
     )
+    # TODO more checks
     camera_data.shift_y = (
         (K_pix[1, 2] - (cam.intr.resolution[0] / 2))
         / (cam.intr.resolution[0])
