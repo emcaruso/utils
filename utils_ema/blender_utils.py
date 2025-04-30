@@ -204,9 +204,9 @@ def generate_camera_from_camcv(cam, name):
 
     # access the camera shift x and y
     camera_data.shift_x = (
-        -(K_pix[0, 2] - cam.intr.resolution[1] / 2) / (cam.intr.resolution[1])
+        -(K_pix[0, 2] - (cam.intr.resolution[1] / 2)) / (cam.intr.resolution[1])
     )
-    camera_data.shift_y = (K_pix[1, 2] - cam.intr.resolution[0] / 2) / (
+    camera_data.shift_y = (K_pix[1, 2] - (cam.intr.resolution[0] / 2)) / (
         cam.intr.resolution[0]
     )
 
