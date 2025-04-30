@@ -203,6 +203,9 @@ def generate_camera_from_camcv(cam, name):
     lens = ((K[0, 0] + K[1, 1]) / 2) * 1000
 
     # access the camera shift x and y
+    import ipdb
+
+    ipdb.set_trace()
     camera_data.shift_x = (
         -(K_pix[0, 2] - cam.intr.resolution[0] / 2) / (cam.intr.resolution[0])
     )
