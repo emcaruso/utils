@@ -215,12 +215,15 @@ class Image:
 
     @staticmethod
     def __show_img(img, img_name="Unk", wk=0):
+
+        cv2.namedWindow(img_name, cv2.WINDOW_NORMAL)  # Create a named window
+
         # if window exists already
-        try:
-            cv2.getWindowProperty(img_name, cv2.WND_PROP_VISIBLE) <= 0
-        except:
-            cv2.namedWindow(img_name, cv2.WINDOW_NORMAL)  # Create a named window
-            cv2.resizeWindow(img_name, int(m.width / 2), int(m.height / 2))
+        # try:
+        #     cv2.getWindowProperty(img_name, cv2.WND_PROP_VISIBLE) <= 0
+        # except:
+        #     cv2.namedWindow(img_name, cv2.WINDOW_NORMAL)  # Create a named window
+        #     cv2.resizeWindow(img_name, int(m.width / 2), int(m.height / 2))
         cv2.imshow(img_name, cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
         key = cv2.waitKey(wk)
         return key
