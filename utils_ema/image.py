@@ -782,8 +782,8 @@ class Image:
 
             img = img.numpy()
 
-            cx = (m.width * 0.94) / (img.shape[0] * dict_multi_show[n]["cx"])
-            cy = (m.height * 0.94) / (img.shape[1] * dict_multi_show[n]["cy"])
+            cx = (m.width * 0.94) / (img.shape[0] * dict_multi_show[n - 1]["cx"])
+            cy = (m.height * 0.94) / (img.shape[1] * dict_multi_show[n - 1]["cy"])
             # c = 1
             # resized = cv2.resize(img, (int(img.shape[0]*c), int(img.shape[1]*c)), interpolation= cv2.INTER_LINEAR)
             # resized = cv2.resize(img, (int(m.width/2), int(m.height/2)), interpolation= cv2.INTER_LINEAR)
