@@ -777,7 +777,7 @@ class Image:
     ):
 
         for i, img in enumerate(images):
-            self.__show_img(img.numpy(), img_name=f"{name}_{i}", wk=1)
+            cls.__show_img(img.numpy(), img_name=f"{name}_{i}", wk=1)
         key = cv2.waitKey(wk)
         return key
 
