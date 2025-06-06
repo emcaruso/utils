@@ -15,18 +15,13 @@ from scipy.ndimage import label, center_of_mass
 from pathlib import Path
 import multiprocessing as mp
 from utils_ema.general import get_monitor
+from const import dict_multi_show
+
 
 m = get_monitor()
 
 
 class Image:
-
-    dict_multi_show = {
-        1: {"cx": 1, "cy": 1, "m": [(0, 0)]},
-        2: {"cx": 2, "cy": 1},
-        3: {"cx": 2, "cy": 2},
-        3: {"cx": 2, "cy": 2},
-    }
 
     def __init__(
         self,
@@ -775,7 +770,9 @@ class Image:
     def show_multiple_images(
         cls, images, wk=0, name="image", undistort=None, cams=None
     ):
+
         n = len(images)
+
         for i, img in enumerate(images):
 
             if undistort is not None:
@@ -785,8 +782,8 @@ class Image:
 
             img = img.numpy()
 
-            cx = (m.width * 0.94) / (img.shape[0] * cls.dict_multi_show[n]["cx"])
-            cy = (m.height * 0.94) / (img.shape[1] * cls.dict_multi_show[n]["cy"])
+            cx = (m.width * 0.94) / (img.shape[0] * dict_multi_show[n]["cx"])
+            cy = (m.height * 0.94) / (img.shape[1] * dict_multi_show[n]["cy"])
             # c = 1
             # resized = cv2.resize(img, (int(img.shape[0]*c), int(img.shape[1]*c)), interpolation= cv2.INTER_LINEAR)
             # resized = cv2.resize(img, (int(m.width/2), int(m.height/2)), interpolation= cv2.INTER_LINEAR)
