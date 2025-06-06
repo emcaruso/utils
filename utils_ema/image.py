@@ -213,15 +213,20 @@ class Image:
     def numpy(self):
         return self.img.detach().cpu().numpy()
 
-    def show(self, img_name="Unk", wk=0):
+    @staticmethod
+    def __show_img(img, img_name="Unk", wk=0):
         # if window exists already
         try:
             cv2.getWindowProperty(img_name, cv2.WND_PROP_VISIBLE) <= 0
         except:
             cv2.namedWindow(img_name, cv2.WINDOW_NORMAL)  # Create a named window
             cv2.resizeWindow(img_name, int(m.width / 2), int(m.height / 2))
-        cv2.imshow(img_name, cv2.cvtColor(self.numpy(), cv2.COLOR_BGR2RGB))
+        cv2.imshow(img_name, cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
         key = cv2.waitKey(wk)
+        return key
+
+    def show(self, img_name="Unk", wk=0):
+        key = self.__show_img(self.numpy(), img_name=img_name, wk=wk)
         return key
 
     def save(self, img_path, verbose=False):
@@ -771,41 +776,44 @@ class Image:
         cls, images, wk=0, name="image", undistort=None, cams=None
     ):
 
-        n = len(images)
-
         for i, img in enumerate(images):
-
-            if undistort is not None:
-                assert cams is not None
-                cam = cams[i]
-                img = cam.intr.undistort_image(img)
-
-            img = img.numpy()
-
-            cx = (m.width * 0.94) / (img.shape[0] * dict_multi_show[n - 1]["cx"])
-            cy = (m.height * 0.94) / (img.shape[1] * dict_multi_show[n - 1]["cy"])
-            # c = 1
-            # resized = cv2.resize(img, (int(img.shape[0]*c), int(img.shape[1]*c)), interpolation= cv2.INTER_LINEAR)
-            # resized = cv2.resize(img, (int(m.width/2), int(m.height/2)), interpolation= cv2.INTER_LINEAR)
-            winname = name + "_" + str(i).zfill(3)
-            try:
-                r = cv2.getWindowProperty(winname, cv2.WND_PROP_VISIBLE)
-                if r <= 0:
-                    raise Exception
-            except:
-                cv2.namedWindow(winname, cv2.WINDOW_NORMAL)  # Create a named window
-                cv2.resizeWindow(
-                    winname, int(img.shape[0] * cx), int(img.shape[1] * cy)
-                )
-                # cv2.resizeWindow(winname, 100, 100)
-                cv2.moveWindow(
-                    winname,
-                    int(((i % 2) == 1) * (m.width / 2)),
-                    int((i > 1) * (m.height / 2)),
-                )
-            cv2.imshow(winname, cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+            self.__show_img(img.numpy(), img_name=f"{name}_{i}", wk=1)
         key = cv2.waitKey(wk)
         return key
+
+        # for i, img in enumerate(images):
+        #
+        #     if undistort is not None:
+        #         assert cams is not None
+        #         cam = cams[i]
+        #         img = cam.intr.undistort_image(img)
+        #
+        #     img = img.numpy()
+        #
+        #     cx = (m.width * 0.94) / (img.shape[0] * dict_multi_show[n - 1]["cx"])
+        #     cy = (m.height * 0.94) / (img.shape[1] * dict_multi_show[n - 1]["cy"])
+        #     # c = 1
+        #     # resized = cv2.resize(img, (int(img.shape[0]*c), int(img.shape[1]*c)), interpolation= cv2.INTER_LINEAR)
+        #     # resized = cv2.resize(img, (int(m.width/2), int(m.height/2)), interpolation= cv2.INTER_LINEAR)
+        #     winname = name + "_" + str(i).zfill(3)
+        #     try:
+        #         r = cv2.getWindowProperty(winname, cv2.WND_PROP_VISIBLE)
+        #         if r <= 0:
+        #             raise Exception
+        #     except:
+        #         cv2.namedWindow(winname, cv2.WINDOW_NORMAL)  # Create a named window
+        #         cv2.resizeWindow(
+        #             winname, int(img.shape[0] * cx), int(img.shape[1] * cy)
+        #         )
+        #         # cv2.resizeWindow(winname, 100, 100)
+        #         cv2.moveWindow(
+        #             winname,
+        #             int(((i % 2) == 1) * (m.width / 2)),
+        #             int((i > 1) * (m.height / 2)),
+        #         )
+        #     cv2.imshow(winname, cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        # key = cv2.waitKey(wk)
+        # return key
 
     @staticmethod
     def merge_images(image_1, image_2, weight, device=None):
