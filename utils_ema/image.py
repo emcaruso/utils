@@ -780,7 +780,9 @@ class Image:
     ):
 
         for i, img in enumerate(images):
-            cls.__show_img(img.numpy(), img_name=f"{name}_{i}", wk=1)
+            key = cls.__show_img(img.numpy(), img_name=f"{name}_{i}", wk=1)
+            if key != -1 and wk == 1:
+                return key
         key = cv2.waitKey(wk)
         return key
 
