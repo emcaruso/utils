@@ -292,7 +292,7 @@ def set_background_images(camera_object, directory):
     img_user.frame_duration = len(list(os.listdir(directory)))
     camera_object.data.show_background_images = True
     camera_object.data.background_images[0].alpha = 0.9
-    camera_object.data.background_images[0].show_on_foreground = False
+    camera_object.data.background_images[0].show_on_foreground = True
 
 
 # def generate_camera_from_camcv(cam, name):
