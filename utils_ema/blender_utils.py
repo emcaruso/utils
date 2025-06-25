@@ -204,8 +204,8 @@ def generate_camera_from_camcv(cam, name):
 
     # access the camera shift x and y
     asp_ratio = cam.intr.resolution[1] / cam.intr.resolution[0]
-    camera_data.shift_x = (
-        -(K_pix[0, 2] - (cam.intr.resolution[1] / 2)) / (cam.intr.resolution[1])
+    camera_data.shift_x = -(K_pix[0, 2] - (cam.intr.resolution[1] / 2)) / (
+        cam.intr.resolution[1]
     )
     # TODO more checks
     camera_data.shift_y = (
@@ -291,6 +291,8 @@ def set_background_images(camera_object, directory):
     img_user.frame_offset = -1
     img_user.frame_duration = len(list(os.listdir(directory)))
     camera_object.data.show_background_images = True
+    img_user.show_in_front = True
+    img_user.data.opacity = 0.9
 
 
 # def generate_camera_from_camcv(cam, name):
