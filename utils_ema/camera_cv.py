@@ -109,7 +109,7 @@ class Intrinsics:
         return K_pix
 
     # Get K_und and K_pix_und from params (NON differentiable)
-    def get_K_und(self, alpha=0, central_pp=False, same_fx_fy=False):
+    def get_K_und(self, alpha=0, central_pp=False, same_fx_fy=True):
         K_pix_und = None
         K_und = None
         roi_und = None
