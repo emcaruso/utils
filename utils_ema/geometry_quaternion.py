@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import copy
 
 
 class Quat:
@@ -34,6 +35,11 @@ class Quat:
         z = (R[..., 1, 0] - R[..., 0, 1]) / (4 * w)
         q = cls(torch.stack((w, x, y, z), dim=-1))
         return q
+
+    def clone(self):
+        return Quat(
+            copy.deepcopy(self.params), device=self.device, dtype=self.params.dtype
+        )
 
     def is_normalized(self):
         return torch.allclose(
