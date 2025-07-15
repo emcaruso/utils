@@ -592,13 +592,77 @@ class Camera_cv:
 
         return out
 
+    def __distort_rational(self, points: torch.Tensor) -> torch.Tensor:
+
+        # given D_params (14 distortion parameters), warp 2D points according to lens distortion
+        k1, k2, p1, p2, k3, k4, k5, k6, k7, k8, k9, k10, k11, k12 = torch.unbind(
+            self.intr.D_params.unsqueeze(-2), dim=-1
+        )
+        fx, fy, cx, cy = torch.unbind(
+            (self.intr.K_params * self.intr.pixel_unit_ratio()).unsqueeze(-2), dim=-1
+        )
+
+        # Normalize to camera coordinates
+        x_n = (points[..., 0] - cx) / fx
+        y_n = (points[..., 1] - cy) / fy
+
+        # Compute r^2 and r^4
+        r2 = x_n**2 + y_n**2
+        r4 = r2**2
+
+        # Radial distortion factor
+        radial = (
+            1 + k1 * r2 + k2 * r4 + k3 * r4 * r2 + k4 * r4**2 + k5 * r4**3 + k6 * r4**4
+        )
+
+        # Compute radial and tangential distortion
+        x_r = x_n * radial
+        y_r = y_n * radial
+
+        x_t = (
+            2 * p1 * x_n * y_n
+            + p2 * (r2 + 2 * x_n**2)
+            + k7 * x_n * y_n**3
+            + k8 * x_n**3 * y_n
+            + k9 * x_n**5
+            + k10 * x_n**3 * y_n**3
+            + k11 * x_n**7
+            + k12 * x_n**5 * y_n**3
+        )
+        y_t = (
+            p1 * (r2 + 2 * y_n**2)
+            + 2 * p2 * x_n * y_n
+            + k7 * y_n * x_n**3
+            + k8 * y_n**3 * x_n
+            + k9 * y_n**5
+            + k10 * x_n**3 * y_n**3
+            + k11 * y_n**7
+            + k12 * x_n**5 * y_n**3
+        )
+
+        # Apply distortions
+        x_d = x_r + x_t
+        y_d = y_r + y_t
+
+        # Convert back to pixel coordinates
+        u_d = x_d * fx + cx
+        v_d = y_d * fy + cy
+
+        out = torch.stack((u_d, v_d), dim=-1)
+
+        return out
+
     def distort(self, points: torch.Tensor) -> torch.Tensor:
 
         assert torch.is_tensor(points)
         if self.intr.D_params is None:
             return points
 
-        return self.__distort_standard(points)
+        if self.intr.D_params.shape[-1] == 5:
+            return self.__distort_standard(points)
+
+        elif self.intr.D_params.shape[-1] == 14:
+            return self.__distort_rational(points)
 
     def test_pix2ray(self):
         rows = self.intr.resolution[0]
