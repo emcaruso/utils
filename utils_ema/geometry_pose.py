@@ -213,15 +213,14 @@ class Pose:
         pose = Pose.from_T(T=T)
         return pose
 
-    @classmethod
-    def average_poses(cls, pose_array):
+    def average_poses(self, pose_array):
         assert hasattr(pose_array, "__iter__")
 
         Rs = []
         ts = []
         for pose in pose_array:
             if pose is not None:
-                assert type(pose) == cls
+                assert type(pose) == self
                 Rs.append(pose.rotation().unsqueeze(0))
                 ts.append(pose.location().unsqueeze(0))
 
@@ -231,7 +230,7 @@ class Pose:
         U, _, Vt = torch.svd(R_avg)
         R_mean = torch.matmul(U, Vt.t())
         t_mean = t.mean(dim=0)
-        pose_mean = Pose(orientation=cls.orientation_cls(R_mean), position=t_mean)
+        pose_mean = Pose(orientation=self.orientation_cls(R_mean), position=t_mean)
         return pose_mean
 
     def dist(self, other):
