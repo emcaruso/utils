@@ -5,6 +5,7 @@ from utils_ema.image import Image
 from utils_ema.aruco import ArucoDetector
 from utils_ema.geometry_pose import Pose
 
+
 class Charuco(ArucoDetector):
 
     def __init__(self, board_params):

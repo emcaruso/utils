@@ -98,6 +98,24 @@ class Image:
         self.set_type(dtype)
         return self
 
+    def flip_horizontal(self):
+        self.img = torch.flip(self.img, dims=[1])
+        return self
+
+    def flip_vertical(self):
+        self.img = torch.flip(self.img, dims=[0])
+        return self
+
+    def rotate_90(self, k=1):
+        """
+        Rotate the image by 90 degrees k times.
+        k = 1: rotate 90 degrees clockwise
+        k = 2: rotate 180 degrees
+        k = 3: rotate 90 degrees counter-clockwise
+        """
+        self.img = torch.rot90(self.img, k=k, dims=[0, 1])
+        return self
+
     def type(self, dtype):
 
         if dtype == self.dtype:

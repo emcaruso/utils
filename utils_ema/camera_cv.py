@@ -555,11 +555,8 @@ class Camera_cv:
         else:
             return pixels
 
-    def distort(self, points: torch.Tensor) -> torch.Tensor:
+    def __distort_standard(self, points: torch.Tensor) -> torch.Tensor:
         # given D_params (5 distortion parameters), warp 2D points according to lens distortion
-        assert torch.is_tensor(points)
-        if self.intr.D_params is None:
-            return points
 
         k1, k2, p1, p2, k3 = torch.unbind(self.intr.D_params.unsqueeze(-2), dim=-1)
         fx, fy, cx, cy = torch.unbind(
@@ -594,6 +591,14 @@ class Camera_cv:
         out = torch.stack((u_d, v_d), dim=-1)
 
         return out
+
+    def distort(self, points: torch.Tensor) -> torch.Tensor:
+
+        assert torch.is_tensor(points)
+        if self.intr.D_params is None:
+            return points
+
+        return self.__distort_standard(points)
 
     def test_pix2ray(self):
         rows = self.intr.resolution[0]
