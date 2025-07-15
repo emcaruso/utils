@@ -220,7 +220,7 @@ class Pose:
         ts = []
         for pose in pose_array:
             if pose is not None:
-                assert type(pose) == self
+                assert type(pose) == self.__class__
                 Rs.append(pose.rotation().unsqueeze(0))
                 ts.append(pose.location().unsqueeze(0))
 
