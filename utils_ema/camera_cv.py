@@ -486,7 +486,7 @@ class Camera_cv:
         assert points.shape[-1] == 3
         points = points.to(self.dtype)
         if transform_cam_pose is not None:
-            pose = self.pose.get_inverse_pose() * transform_cam_pose
+            pose = transform_cam_pose * self.pose.get_inverse_pose() 
         else:
             pose = self.pose.get_inverse_pose()
         # T = self.pose.get_T_inverse()
