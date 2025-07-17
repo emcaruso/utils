@@ -609,22 +609,23 @@ class Camera_cv:
         r2 = x_n**2 + y_n**2
         r4 = r2**2
         r6 = r2**3
-        r8 = r4**2
-        r10 = r4 * r6
-        r12 = r6**2
 
-        radial = 1 + k1 * r2 + k2 * r4 + k3 * r6 + k4 * r8 + k5 * r10 + k6 * r12
+        # Numerator polynomial (1 + k1*r2 + k2*r4 + k3*r6)
+        numerator = 1 + k1 * r2 + k2 * r4 + k3 * r6
+
+        # Denominator polynomial (1 + k4*r2 + k5*r4 + k6*r6)
+        denominator = 1 + k4 * r2 + k5 * r4 + k6 * r6
+
+        radial = numerator / denominator
 
         x_d = x_n * radial
         y_d = y_n * radial
 
-        # Back to pixels
+        # Back to pixel coordinates
         u_d = x_d * fx + cx
         v_d = y_d * fy + cy
 
-        return torch.stack((u_d, v_d), dim=-1)
-
-    def distort(self, points: torch.Tensor) -> torch.Tensor:
+        return torch.stack((u_d, v_d), dim=-1)    def distort(self, points: torch.Tensor) -> torch.Tensor:
 
         assert torch.is_tensor(points)
         if self.intr.D_params is None:
