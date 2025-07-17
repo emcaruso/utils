@@ -625,17 +625,7 @@ class Camera_cv:
         u_d = x_d * fx + cx
         v_d = y_d * fy + cy
 
-        return torch.stack((u_d, v_d), dim=-1)    def distort(self, points: torch.Tensor) -> torch.Tensor:
-
-        assert torch.is_tensor(points)
-        if self.intr.D_params is None:
-            return points
-
-        if self.intr.D_params.shape[-1] == 5:
-            return self.__distort_standard(points)
-
-        elif self.intr.D_params.shape[-1] == 14:
-            return self.__distort_rational(points)
+        return torch.stack((u_d, v_d), dim=-1)
 
     def test_pix2ray(self):
         rows = self.intr.resolution[0]
