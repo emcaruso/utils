@@ -1,4 +1,5 @@
 import torch
+import copy
 import numpy as np
 from utils_ema.geometry_quaternion import Quat
 
@@ -20,6 +21,14 @@ class eul:
 
     def to_quat(self):
         return Quat.from_rot(self.to_rot())
+
+    def clone(self):
+        return eul(
+            copy.deepcopy(self.params),
+            convention=self.convention,
+            device=self.device,
+            dtype=self.params.dtype,
+        )
 
     def normalize_angles(self):
         return (self.params + torch.pi) % (2 * torch.pi) - torch.pi
@@ -131,7 +140,9 @@ class eul:
         e1 = torch.atan2(R[..., 0, 2], R[..., 2, 2])
         e2 = torch.asin(-R[..., 1, 2])
         e3 = torch.atan2(R[..., 1, 0], R[..., 1, 1])
-        e_flat = torch.cat((e1.unsqueeze(-1), e2.unsqueeze(-1), e3.unsqueeze(-1)), dim=-1)
+        e_flat = torch.cat(
+            (e1.unsqueeze(-1), e2.unsqueeze(-1), e3.unsqueeze(-1)), dim=-1
+        )
         euler = eul(e_flat)
         return euler
 
@@ -140,7 +151,6 @@ class eul:
         assert R.shape[-2:] == (3, 3)
         assert torch.allclose(R.det(), torch.tensor(1.0))
         return cls.rot2eul_YXZ(R)
-
 
     def dist(self, other):
         q1 = self.eul2quat()
