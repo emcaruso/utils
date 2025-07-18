@@ -27,7 +27,6 @@ class eul:
             copy.deepcopy(self.params),
             convention=self.convention,
             device=self.device,
-            dtype=self.params.dtype,
         )
 
     def normalize_angles(self):
