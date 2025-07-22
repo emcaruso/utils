@@ -1,4 +1,5 @@
 import cv2
+import pyrender
 import torch
 import sys, os
 import copy as cp
@@ -671,6 +672,20 @@ class Camera_cv:
             else torch.norm(points_c, p=2, dim=-1, keepdim=True)
         )
         return torch.cat([pixels, depths], dim=-1)
+
+    def get_pyrender_cam(self):
+        f = (self.intr.K_pix_und[0, 0] + self.intr.K_pix_und[1, 1]) / 2
+        cx = self.intr.K_pix_und[0, 2]
+        cy = self.intr.K_pix_und[1, 2]
+        camera = pyrender.IntrinsicsCamera(
+            fx=f,
+            fy=f,
+            cx=cx.item(),
+            cy=cy.item(),
+            znear=0.01,
+            zfar=99999999999.0,
+        )
+        return camera
 
 
 # class Camera_on_sphere(Camera_cv):
