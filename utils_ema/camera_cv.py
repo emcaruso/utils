@@ -678,12 +678,7 @@ class Camera_cv:
         cx = self.intr.K_pix_und[0, 2]
         cy = self.intr.K_pix_und[1, 2]
         camera = pyrender.IntrinsicsCamera(
-            fx=f,
-            fy=f,
-            cx=cx.item(),
-            cy=cy.item(),
-            znear=0.0,
-            zfar=sys.float_info.max,
+            fx=f, fy=f, cx=cx.item(), cy=cy.item(), znear=1e-15, zfar=1e15
         )
         return camera
 
