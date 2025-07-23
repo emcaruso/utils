@@ -225,7 +225,7 @@ class Intrinsics:
             self.K_und[..., 1, 1] *= s
             self.K_und[..., :2, -1] *= s
 
-    def undistort_image(self, img):
+    def undistort_image(self, img: Image):
         undistorted = cv2.remap(
             img.numpy(), self.undist_map[0], self.undist_map[1], cv2.INTER_LINEAR
         )
@@ -676,7 +676,8 @@ class Camera_cv:
     def get_pyrender_cam(self, near, far):
         f = (self.intr.K_pix_und[0, 0] + self.intr.K_pix_und[1, 1]) / 2
         cx = self.intr.K_pix_und[0, 2]
-        cy = self.intr.K_pix_und[1, 2]
+        # cy = self.intr.K_pix_und[1, 2]
+        cy = self.intr.resolution[0] - self.intr.K_pix_und[1, 2]
         camera = pyrender.IntrinsicsCamera(
             fx=f,
             fy=f,
