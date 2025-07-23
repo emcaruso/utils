@@ -673,7 +673,7 @@ class Camera_cv:
         )
         return torch.cat([pixels, depths], dim=-1)
 
-    def get_pyrender_cam(self):
+    def get_pyrender_cam(self, near, far):
         f = (self.intr.K_pix_und[0, 0] + self.intr.K_pix_und[1, 1]) / 2
         cx = self.intr.K_pix_und[0, 2]
         cy = self.intr.K_pix_und[1, 2]
@@ -682,8 +682,8 @@ class Camera_cv:
             fy=f,
             cx=cx.item(),
             cy=cy.item(),
-            znear=0.01,
-            zfar=999999999999.0,
+            znear=near,
+            zfar=far,
         )
         return camera
 
