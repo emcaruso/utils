@@ -682,8 +682,8 @@ class Camera_cv:
             fy=f,
             cx=cx.item(),
             cy=cy.item(),
-            znear=0.01,
-            zfar=99999999999.0,
+            znear=0.0,
+            zfar=sys.float_info.max,
         )
         return camera
 
