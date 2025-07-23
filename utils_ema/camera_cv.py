@@ -676,7 +676,8 @@ class Camera_cv:
     def get_pyrender_cam(self, near, far):
         f = (self.intr.K_pix_und[0, 0] + self.intr.K_pix_und[1, 1]) / 2
         cx = self.intr.K_pix_und[0, 2]
-        cy = self.intr.K_pix_und[1, 2]
+        # cy = self.intr.K_pix_und[1, 2]
+        cy = self.intr.resolution[0] - self.intr.K_pix_und[1, 2]
         camera = pyrender.IntrinsicsCamera(
             fx=f,
             fy=f,
