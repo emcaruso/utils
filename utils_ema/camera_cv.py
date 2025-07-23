@@ -683,7 +683,7 @@ class Camera_cv:
             cx=cx.item(),
             cy=cy.item(),
             znear=0.01,
-            zfar=99999999999.0,
+            zfar=999999999999.0,
         )
         return camera
 
