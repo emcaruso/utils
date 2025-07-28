@@ -110,15 +110,15 @@ class eul:
 
     def eul2rot_XYZ(self):
         c1, c2, c3, s1, s2, s3 = self.get_cs()
-        r11 = c1 * c2
-        r12 = c1 * s2 * s3 - c3 * s1
-        r13 = c1 * s2 * c3 + s1 * s3
-        r21 = s1 * c2
-        r22 = s1 * s2 * s3 + c1 * c3
-        r23 = s1 * s2 * c3 - c1 * s3
-        r31 = -s2
-        r32 = c2 * s3
-        r33 = c2 * c3
+        r11 = c2 * c3
+        r12 = -c2 * s3
+        r13 = s2
+        r21 = c1 * s3 + c3 * s1 * s2
+        r22 = c1 * c3 - s1 * s2 * s3
+        r23 = -c2 * s1
+        r31 = s1 * s3 - c1 * c3 * s2
+        r32 = c3 * s1 + c1 * s2 * s3
+        r33 = c1 * c2
         r1 = torch.cat(
             (r11.unsqueeze(-1), r12.unsqueeze(-1), r13.unsqueeze(-1)), dim=-1
         )
@@ -137,10 +137,10 @@ class eul:
         c1, c2, c3, s1, s2, s3 = self.get_cs()
         r11 = c1 * c2
         r12 = c1 * s2 * s3 - c3 * s1
-        r13 = c1 * s2 * c3 + s1 * s3
-        r21 = s1 * c2
-        r22 = s1 * s2 * s3 + c1 * c3
-        r23 = s1 * s2 * c3 - c1 * s3
+        r13 = s1 * s3 + c1 * c3 * s2
+        r21 = c2 * s1
+        r22 = c1 * c3 + s1 * s2 * s3
+        r23 = c3 * s1 * s2 - c1 * s3
         r31 = -s2
         r32 = c2 * s3
         r33 = c2 * c3
@@ -241,9 +241,9 @@ class eul:
 
     @staticmethod
     def rot2eul_XYZ(R=torch.eye(3)):
-        e1 = torch.atan2(R[..., 1, 2], R[..., 2, 2])
-        e2 = torch.asin(-R[..., 0, 2])
-        e3 = torch.atan2(R[..., 0, 1], R[..., 0, 0])
+        e1 = torch.atan2(-R[..., 1, 2], R[..., 2, 2])
+        e2 = torch.asin(R[..., 0, 2])
+        e3 = torch.atan2(-R[..., 0, 1], R[..., 0, 0])
         e_flat = torch.cat(
             (e1.unsqueeze(-1), e2.unsqueeze(-1), e3.unsqueeze(-1)), dim=-1
         )
