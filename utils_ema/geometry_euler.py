@@ -264,7 +264,9 @@ class eul:
     @classmethod
     def from_rot(cls, R: torch.Tensor):
         assert R.shape[-2:] == (3, 3)
-        assert torch.allclose(R.det(), torch.tensor(1.0))
+        assert torch.allclose(
+            R.det(), torch.tensor(1.0, dtype=R.dtype, device=R.device)
+        )
         return cls.rot2eul_YXZ(R)
 
     def dist(self, other):
