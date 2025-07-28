@@ -262,12 +262,17 @@ class eul:
         return euler
 
     @classmethod
-    def from_rot(cls, R: torch.Tensor):
+    def from_rot(cls, R: torch.Tensor, convention="YXZ"):
         assert R.shape[-2:] == (3, 3)
         assert torch.allclose(
             R.det(), torch.tensor(1.0, dtype=R.dtype, device=R.device)
         )
-        return cls.rot2eul_YXZ(R)
+        if convention == "YXZ":
+            return cls.rot2eul_YXZ(R)
+        elif convention == "XYZ":
+            return cls.rot2eul_XYZ(R)
+        elif convention == "ZYX":
+            return cls.rot2eul_ZYX(R)
 
     def dist(self, other):
         q1 = self.eul2quat()
