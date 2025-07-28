@@ -38,7 +38,9 @@ class Quat:
 
     def clone(self):
         return Quat(
-            copy.deepcopy(self.params), device=self.device, dtype=self.params.dtype
+            copy.deepcopy(self.params.detach().cpu()),
+            device=self.device,
+            dtype=self.params.dtype,
         )
 
     def is_normalized(self):

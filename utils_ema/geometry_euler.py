@@ -24,7 +24,7 @@ class eul:
 
     def clone(self):
         return eul(
-            copy.deepcopy(self.params.detach().cpu().numpy()),
+            copy.deepcopy(self.params.detach().cpu()),
             convention=self.convention,
             device=self.device,
         )
