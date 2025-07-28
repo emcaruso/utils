@@ -72,6 +72,31 @@ class eul:
         s3 = s[..., 2]
         return c1, c2, c3, s1, s2, s3
 
+    def eul2rot_XYZ(self):
+        c1, c2, c3, s1, s2, s3 = self.get_cs()
+        r11 = c1 * c2
+        r12 = c1 * s2 * s3 - c3 * s1
+        r13 = c1 * s2 * c3 + s1 * s3
+        r21 = s1 * c2
+        r22 = s1 * s2 * s3 + c1 * c3
+        r23 = s1 * s2 * c3 - c1 * s3
+        r31 = -s2
+        r32 = c2 * s3
+        r33 = c2 * c3
+        r1 = torch.cat(
+            (r11.unsqueeze(-1), r12.unsqueeze(-1), r13.unsqueeze(-1)), dim=-1
+        )
+        r2 = torch.cat(
+            (r21.unsqueeze(-1), r22.unsqueeze(-1), r23.unsqueeze(-1)), dim=-1
+        )
+        r3 = torch.cat(
+            (r31.unsqueeze(-1), r32.unsqueeze(-1), r33.unsqueeze(-1)), dim=-1
+        )
+        rot = torch.cat((r1.unsqueeze(-1), r2.unsqueeze(-1), r3.unsqueeze(-1)), dim=-1)
+        rot = rot.transpose(-2, -1)
+        rot = rot.to(self.params.device)
+        return rot
+
     def eul2rot_YXZ(self):
         c1, c2, c3, s1, s2, s3 = self.get_cs()
         r11 = c1 * c3 + s1 * s2 * s3
@@ -119,6 +144,8 @@ class eul:
     def rot2eul(self, R=torch.eye(3)):
         if self.convention == "YXZ":
             return eul.rot2eul_YXZ(R)
+        elif self.convention == "XYZ":
+            return eul.rot2eul_XYZ(R)
 
     def eul2rot(self):
         # match self.convention:
@@ -128,6 +155,8 @@ class eul:
         #         raise ValueError("Wrong euler convention")
         if self.convention == "YXZ":
             return self.eul2rot_YXZ()
+        elif self.convention == "XYZ":
+            return self.eul2rot_XYZ()
         elif self.convention == "YX":
             return self.eul2rot_YX()
 
@@ -139,6 +168,17 @@ class eul:
         e1 = torch.atan2(R[..., 0, 2], R[..., 2, 2])
         e2 = torch.asin(-R[..., 1, 2])
         e3 = torch.atan2(R[..., 1, 0], R[..., 1, 1])
+        e_flat = torch.cat(
+            (e1.unsqueeze(-1), e2.unsqueeze(-1), e3.unsqueeze(-1)), dim=-1
+        )
+        euler = eul(e_flat)
+        return euler
+
+    @staticmethod
+    def rot2eul_XYZ(R=torch.eye(3)):
+        e1 = torch.atan2(R[..., 1, 2], R[..., 2, 2])
+        e2 = torch.asin(-R[..., 0, 2])
+        e3 = torch.atan2(R[..., 0, 1], R[..., 0, 0])
         e_flat = torch.cat(
             (e1.unsqueeze(-1), e2.unsqueeze(-1), e3.unsqueeze(-1)), dim=-1
         )
