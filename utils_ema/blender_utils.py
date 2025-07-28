@@ -222,8 +222,8 @@ def generate_camera_from_camcv(cam, name):
     return camera_object, camera_data
 
 
-def set_object_pose(obj, pose: Pose):
-    obj.rotation_mode = "YXZ"
+def set_object_pose(obj, pose: Pose, rotation_mode="YXZ"):
+    obj.rotation_mode = rotation_mode
     obj.matrix_world = Matrix(pose.get_T().detach().cpu().numpy())
     obj.scale = np.ones(3) * pose.scale.detach().item()
     # obj.location = pose.location().numpy()
