@@ -23,7 +23,7 @@ class Pose:
         units="meters",
         device=None,
     ):
-        assert orientation.__class__.name in ["eul", "Quat"]
+        assert orientation.__name__ in ["eul", "Quat"]
         assert torch.is_tensor(position)
 
         self.orientation = orientation
