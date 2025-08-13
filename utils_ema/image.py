@@ -125,7 +125,10 @@ class Image:
             self.dtype in [torch.float32, torch.float64] and (dtype == torch.bool)
         ):
             img = self.img.type(dtype)
-
+        elif self.dtype == torch.bool and dtype == torch.uint8:
+            img = self.img.type(dtype) * 255
+        elif self.dtype == torch.uint8 and dtype == torch.bool:
+            img = self.img.type(dtype / 255)
         elif self.dtype == torch.uint8 and (
             dtype == torch.float32 or dtype == torch.float64
         ):
