@@ -237,14 +237,22 @@ class Intrinsics:
         # undistorted = undistorted[y:y+h, x:x+w]
         return img_und
 
-    def change_resolution(self, new_resolution: Tuple[int, int]):
+    def change_due_to_crop(
+        self, new_resolution: Tuple[int, int], crop_offset: Tuple[int, int]
+    ):
         """Change the resolution of the camera intrinsics."""
-        import ipdb
+        ratio_x = new_resolution[0] / self.resolution[0]
+        ratio_y = new_resolution[1] / self.resolution[1]
 
-        ipdb.set_trace()
         self.resolution = torch.tensor(
             new_resolution, dtype=torch.long, device=self.device
         )
+        self.K_params[..., 2] -= crop_offset[0]
+        self.K_params[..., 3] -= crop_offset[1]
+
+        self.sensor_size[0] *= ratio_y
+        self.sensor_size[1] *= ratio_x
+
         self.update_intrinsics()
         self.compute_undistortion_map()
 
