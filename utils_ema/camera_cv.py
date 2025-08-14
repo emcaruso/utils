@@ -1,4 +1,5 @@
 import cv2
+from typing import Optional, Tuple
 import pyrender
 import torch
 import sys, os
