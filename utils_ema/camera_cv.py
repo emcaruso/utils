@@ -240,12 +240,18 @@ class Intrinsics:
     def change_due_to_crop(
         self, new_resolution: Tuple[int, int], crop_offset: Tuple[int, int]
     ):
-        """Change the resolution of the camera intrinsics."""
-        ratio_x = new_resolution[0] / self.resolution[0]
-        ratio_y = new_resolution[1] / self.resolution[1]
+        """
+        Change intrinsics due to crop
+        Args:
+            new_resolution (Tuple[int, int]): New resolution of the image (width, height)
+            crop_offset (Tuple[int, int]): Offset of the crop (x_offset, y_offset)
+        """
+
+        ratio_x = new_resolution[0] / self.resolution[1]
+        ratio_y = new_resolution[1] / self.resolution[0]
 
         self.resolution = torch.tensor(
-            new_resolution, dtype=torch.long, device=self.device
+            (new_resolution[1], new_resolution[0]), dtype=torch.long, device=self.device
         )
         self.K_params[..., 2] -= crop_offset[0]
         self.K_params[..., 3] -= crop_offset[1]
