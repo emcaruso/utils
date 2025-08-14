@@ -38,6 +38,29 @@ class eul:
         new_eul = self.rot2eul(new_rot)
         self.params = new_eul.params
 
+    def change_convention(self, convention):
+        if convention == self.convention:
+            return self
+        if convention == "YXZ":
+            if self.convention == "XYZ":
+                self.params = self.rot2eul_YXZ(self.eul2rot_XYZ())
+            elif self.convention == "ZYX":
+                self.params = self.rot2eul_YXZ(self.eul2rot_ZYX())
+        elif convention == "XYZ":
+            if self.convention == "YXZ":
+                self.params = self.rot2eul_XYZ(self.eul2rot_YXZ())
+            elif self.convention == "ZYX":
+                self.params = self.rot2eul_XYZ(self.eul2rot_ZYX())
+        elif convention == "ZYX":
+            if self.convention == "YXZ":
+                self.params = self.rot2eul_ZYX(self.eul2rot_YXZ())
+            elif self.convention == "XYZ":
+                self.params = self.rot2eul_ZYX(self.eul2rot_XYZ())
+        else:
+            raise ValueError("Unknown euler convention")
+        self.convention = convention
+        return self
+
     def eul2quat_YXZ(self):
         c1 = torch.cos(self.params[..., 1] / 2.0)
         c2 = torch.cos(self.params[..., 0] / 2.0)
