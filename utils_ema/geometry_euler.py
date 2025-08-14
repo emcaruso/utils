@@ -43,19 +43,19 @@ class eul:
             return self
         if convention == "YXZ":
             if self.convention == "XYZ":
-                self.params = self.rot2eul_YXZ(self.eul2rot_XYZ())
+                self.params = self.rot2eul_YXZ(self.eul2rot_XYZ()).params
             elif self.convention == "ZYX":
-                self.params = self.rot2eul_YXZ(self.eul2rot_ZYX())
+                self.params = self.rot2eul_YXZ(self.eul2rot_ZYX()).params
         elif convention == "XYZ":
             if self.convention == "YXZ":
-                self.params = self.rot2eul_XYZ(self.eul2rot_YXZ())
+                self.params = self.rot2eul_XYZ(self.eul2rot_YXZ()).params
             elif self.convention == "ZYX":
-                self.params = self.rot2eul_XYZ(self.eul2rot_ZYX())
+                self.params = self.rot2eul_XYZ(self.eul2rot_ZYX()).params
         elif convention == "ZYX":
             if self.convention == "YXZ":
-                self.params = self.rot2eul_ZYX(self.eul2rot_YXZ())
+                self.params = self.rot2eul_ZYX(self.eul2rot_YXZ()).params
             elif self.convention == "XYZ":
-                self.params = self.rot2eul_ZYX(self.eul2rot_XYZ())
+                self.params = self.rot2eul_ZYX(self.eul2rot_XYZ()).params
         else:
             raise ValueError("Unknown euler convention")
         self.convention = convention
