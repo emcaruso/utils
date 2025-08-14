@@ -236,6 +236,17 @@ class Intrinsics:
         # undistorted = undistorted[y:y+h, x:x+w]
         return img_und
 
+    def change_resolution(self, new_resolution: Tuple[int, int]):
+        """Change the resolution of the camera intrinsics."""
+        import ipdb
+
+        ipdb.set_trace()
+        self.resolution = torch.tensor(
+            new_resolution, dtype=torch.long, device=self.device
+        )
+        self.update_intrinsics()
+        self.compute_undistortion_map()
+
 
 class Camera_cv:
     def __init__(
