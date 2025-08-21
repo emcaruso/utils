@@ -278,7 +278,11 @@ class Image:
         indices = indices.to(torch.int32)
         return indices
 
-    def get_distance_map(self, mask, exp=1, edge_method="sobel"):
+    def get_distance_map(self, exp=1, edge_method="sobel"):
+        if not self.is_mask():
+            raise ValueError(
+                f"Image is not a mask, cannot compute distance map. Current dtype: {self.dtype}"
+            )
         dist = distance_transform_edt(mask)
         # dist = torch.from_numpy(dist / dist.max()).type(torch.float32)
         dist = torch.from_numpy(dist).type(torch.float32)
