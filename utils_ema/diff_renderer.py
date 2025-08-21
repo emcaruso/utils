@@ -162,7 +162,7 @@ class Renderer:
         gl_cam = camera.get_camera_opencv()
         gl_cam.type(obj.mesh.uv.dtype)
         r = camera.intr.resolution
-        r = [r[1], r[0]]
+        r = [r[0], r[1]]
         P = Renderer.to_gl_camera(gl_cam, r, n=cls.near, f=cls.far)
         uv = obj.mesh.uv.to(device)
 
