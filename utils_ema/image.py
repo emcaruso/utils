@@ -604,6 +604,20 @@ class Image:
         img_new = torch.from_numpy(s)
         return Image.from_img(img_new)
 
+    def dilate(self, n: int):
+        if self.is_mask():
+            img_new = torch.from_numpy(
+                cv2.dilate(self.img.numpy().astype(np.uint8), np.ones((n, n), np.uint8))
+            )
+            return Image.from_img(img_new)
+
+    def erode(self, n: int):
+        if self.is_mask():
+            img_new = torch.from_numpy(
+                cv2.erode(self.img.numpy().astype(np.uint8), np.ones((n, n), np.uint8))
+            )
+            return Image.from_img(img_new)
+
     def canny(self, sigma):
         img_new = torch.from_numpy(feature.canny(self.gray().numpy(), sigma))
         return Image.from_img(img_new)
