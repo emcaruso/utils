@@ -278,15 +278,7 @@ class Image:
         indices = indices.to(torch.int32)
         return indices
 
-    def get_distance_map(self, thresh, exp=1, edge_method="sobel"):
-        if edge_method == "sobel":
-            filtered = self.sobel()
-            mask = ~((filtered.gray() > thresh).unsqueeze(-1).numpy())
-        elif edge_method == "canny":
-            filtered = self.canny(sigma=thresh)
-            mask = ~((filtered.gray() > 0.5).unsqueeze(-1).numpy())
-        else:
-            raise ValueError(f"edge_method {edge_method} not valid")
+    def get_distance_map(self, mask, exp=1, edge_method="sobel"):
         dist = distance_transform_edt(mask)
         # dist = torch.from_numpy(dist / dist.max()).type(torch.float32)
         dist = torch.from_numpy(dist).type(torch.float32)
