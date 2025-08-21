@@ -239,7 +239,11 @@ class Image:
 
         cv2.namedWindow(img_name, cv2.WINDOW_NORMAL)  # Create a named window
 
-        # if window exists already
+        if img.dtype == torch.bool:
+            img_out = img.type(torch.uint8).numpy() * 255
+        else:
+            img_out = img.clone()
+        # if w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indow exists already
         # try:
         #     cv2.getWindowProperty(img_name, cv2.WND_PROP_VISIBLE) <= 0
         # except:
@@ -609,7 +613,7 @@ class Image:
             img_new = torch.from_numpy(
                 cv2.dilate(self.img.numpy().astype(np.uint8), np.ones((n, n), np.uint8))
             )
-            return Image.from_img(img_new)
+            return Image.from_img(img_new > 0.5)
 
     def erode(self, n: int):
         if self.is_mask():
