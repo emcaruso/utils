@@ -239,20 +239,17 @@ class Image:
 
         cv2.namedWindow(img_name, cv2.WINDOW_NORMAL)  # Create a named window
 
-        import ipdb
-
-        ipdb.set_trace()
         if img.dtype == "bool":
             img_out = img.astype(np.uint8) * 255
         else:
-            img_out = img.copy()
+            img_out = img
         # if w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indow exists already
         # try:
         #     cv2.getWindowProperty(img_name, cv2.WND_PROP_VISIBLE) <= 0
         # except:
         #     cv2.namedWindow(img_name, cv2.WINDOW_NORMAL)  # Create a named window
         #     cv2.resizeWindow(img_name, int(m.width / 2), int(m.height / 2))
-        cv2.imshow(img_name, cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        cv2.imshow(img_name, cv2.cvtColor(img_out, cv2.COLOR_BGR2RGB))
         key = cv2.waitKey(wk)
         return key
 
