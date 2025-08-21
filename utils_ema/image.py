@@ -239,8 +239,6 @@ class Image:
 
         cv2.namedWindow(img_name, cv2.WINDOW_NORMAL)  # Create a named window
 
-        if sel
-
         # if window exists already
         # try:
         #     cv2.getWindowProperty(img_name, cv2.WND_PROP_VISIBLE) <= 0
