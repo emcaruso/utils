@@ -239,7 +239,7 @@ class Image:
 
         cv2.namedWindow(img_name, cv2.WINDOW_NORMAL)  # Create a named window
 
-        if img.dtype == torch.bool:
+        if img.dtype == "bool":
             img_out = img.type(torch.uint8).numpy() * 255
         else:
             img_out = img.copy()
