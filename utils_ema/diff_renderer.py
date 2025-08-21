@@ -283,7 +283,7 @@ class Renderer:
         mask = (gbuffers["mask"] > 0).squeeze()
 
         # pixs = camera.sample_rand_pixs_in_mask( mask, percentage=shading_percentage)
-        if n_pix is None:
+        if n_pixs is None:
             pixs = torch.nonzero(mask, as_tuple=False).to(mask.device)
         else:
             pixs = camera.sample_rand_pixs_in_mask(mask, n_pixs=n_pixs)
