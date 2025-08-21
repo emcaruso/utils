@@ -283,7 +283,7 @@ class Image:
             raise ValueError(
                 f"Image is not a mask, cannot compute distance map. Current dtype: {self.dtype}"
             )
-        dist = distance_transform_edt(mask)
+        dist = distance_transform_edt(self.img)
         # dist = torch.from_numpy(dist / dist.max()).type(torch.float32)
         dist = torch.from_numpy(dist).type(torch.float32)
         dist = dist**exp
