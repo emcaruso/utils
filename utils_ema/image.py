@@ -240,7 +240,7 @@ class Image:
         cv2.namedWindow(img_name, cv2.WINDOW_NORMAL)  # Create a named window
 
         if img.dtype == "bool":
-            img_out = img.type(torch.uint8).numpy() * 255
+            img_out = img.astype(np.uint8) * 255
         else:
             img_out = img.copy()
         # if w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indow exists already
