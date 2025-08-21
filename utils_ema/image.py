@@ -242,7 +242,7 @@ class Image:
         if img.dtype == torch.bool:
             img_out = img.type(torch.uint8).numpy() * 255
         else:
-            img_out = img.clone()
+            img_out = img.copy()
         # if w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indow exists already
         # try:
         #     cv2.getWindowProperty(img_name, cv2.WND_PROP_VISIBLE) <= 0
