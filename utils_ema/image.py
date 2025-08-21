@@ -239,6 +239,8 @@ class Image:
 
         cv2.namedWindow(img_name, cv2.WINDOW_NORMAL)  # Create a named window
 
+        if sel
+
         # if window exists already
         # try:
         #     cv2.getWindowProperty(img_name, cv2.WND_PROP_VISIBLE) <= 0
@@ -869,7 +871,7 @@ class Image:
 
     def is_mask(self):
         is_bool = self.dtype == torch.bool
-        single_ch = len(self.img.shape) or self.img.shape[-1] == 1
+        single_ch = self.img.shape[-1] == 1
         return is_bool and single_ch
 
     def process_clusters(self):
