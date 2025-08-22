@@ -116,27 +116,34 @@ class Quat:
         return q1_inv * other
 
     def __mul__(self, other):
-        # Extract components
-        w1, x1, y1, z1 = (
-            self.params[..., 0],
-            self.params[..., 1],
-            self.params[..., 2],
-            self.params[..., 3],
-        )
-        w2, x2, y2, z2 = (
-            other.params[..., 0],
-            other.params[..., 1],
-            other.params[..., 2],
-            other.params[..., 3],
-        )
+        if isinstance(other, Quat):
+            new_rot = self.to_rot() @ other.to_rot()
+            new_eul = self.from_rot(new_rot)
+            return new_eul
+        else:
+            raise ValueError("Can only multiply by another eul instance")
 
-        # Compute components of the product
-        w = w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
-        x = w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2
-        y = w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2
-        z = w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2
-
-        return Quat(torch.stack((w, x, y, z), dim=-1))
+        # # Extract components
+        # w1, x1, y1, z1 = (
+        #     self.params[..., 0],
+        #     self.params[..., 1],
+        #     self.params[..., 2],
+        #     self.params[..., 3],
+        # )
+        # w2, x2, y2, z2 = (
+        #     other.params[..., 0],
+        #     other.params[..., 1],
+        #     other.params[..., 2],
+        #     other.params[..., 3],
+        # )
+        #
+        # # Compute components of the product
+        # w = w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
+        # x = w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2
+        # y = w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2
+        # z = w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2
+        #
+        # return Quat(torch.stack((w, x, y, z), dim=-1))
 
     def dist(self, q2):
         q1_inv = self.get_inv()
