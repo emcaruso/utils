@@ -113,7 +113,7 @@ class Quat:
 
     def __sub__(self, other):
         q1_inv = self.get_inv()
-        return other * q1_inv
+        return q1_inv * other
 
     def __mul__(self, other):
         # Extract components
