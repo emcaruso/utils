@@ -316,3 +316,19 @@ class eul:
         if not is_rot:
             print(Rt @ R, det)
         return is_rot
+
+    def __mul__(self, other):
+        if isinstance(other, eul):
+            new_rot = self.eul2rot() @ other.eul2rot()
+            new_eul = self.rot2eul(new_rot)
+            return new_eul
+        else:
+            raise ValueError("Can only multiply by another eul instance")
+
+    def __sub__(self, other):
+        if isinstance(other, eul):
+            diff = self.eul2rot().transpose(-2, -1) @ other.eul2rot()
+            new_eul = self.rot2eul(diff)
+            return new_eul
+        else:
+            raise ValueError("Can only subtract another eul instance")

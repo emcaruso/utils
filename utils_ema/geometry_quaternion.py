@@ -111,6 +111,10 @@ class Quat:
         q_conj[..., 1:] = -q_conj[..., 1:]
         return Quat(q_conj)
 
+    def __sub__(self, other):
+        q1_inv = self.get_inv()
+        return other * q1_inv
+
     def __mul__(self, other):
         # Extract components
         w1, x1, y1, z1 = (
