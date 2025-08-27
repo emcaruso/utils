@@ -275,7 +275,7 @@ def set_object_texture(obj, image_path, name):
         obj.data.materials.append(material)
 
 
-def set_background_images(camera_object, directory):
+def set_background_images(camera_object, directory, alpha=0.6):
     dir = Path(directory)
     filepath = str(sorted(dir.iterdir())[0])
     bpy.data.images.load(filepath=filepath)
@@ -293,7 +293,7 @@ def set_background_images(camera_object, directory):
     img_user.frame_offset = -1
     img_user.frame_duration = len(list(os.listdir(directory)))
     camera_object.data.show_background_images = True
-    camera_object.data.background_images[0].alpha = 0.9
+    camera_object.data.background_images[0].alpha = alpha
     camera_object.data.background_images[0].show_on_foreground = True
 
 
