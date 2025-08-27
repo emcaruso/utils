@@ -620,7 +620,6 @@ class Camera_cv:
         return out
 
     def __distort_rational(self, points: torch.Tensor) -> torch.Tensor:
-
         # given D_params (14 distortion parameters), warp 2D points according to lens distortion
         k1, k2, p1, p2, k3, k4, k5, k6, _, _, _, _, _, _ = torch.unbind(
             self.intr.D_params.unsqueeze(-2), dim=-1
@@ -637,22 +636,63 @@ class Camera_cv:
         r4 = r2**2
         r6 = r2**3
 
-        # Numerator polynomial (1 + k1*r2 + k2*r4 + k3*r6)
+        # Radial factor
         numerator = 1 + k1 * r2 + k2 * r4 + k3 * r6
-
-        # Denominator polynomial (1 + k4*r2 + k5*r4 + k6*r6)
         denominator = 1 + k4 * r2 + k5 * r4 + k6 * r6
-
         radial = numerator / denominator
 
-        x_d = x_n * radial
-        y_d = y_n * radial
+        # Apply radial
+        x_r = x_n * radial
+        y_r = y_n * radial
+
+        # Tangential distortion
+        x_t = 2 * p1 * x_n * y_n + p2 * (r2 + 2 * x_n**2)
+        y_t = p1 * (r2 + 2 * y_n**2) + 2 * p2 * x_n * y_n
+
+        # Distorted normalized coords
+        x_d = x_r + x_t
+        y_d = y_r + y_t
 
         # Back to pixel coordinates
         u_d = x_d * fx + cx
         v_d = y_d * fy + cy
 
         return torch.stack((u_d, v_d), dim=-1)
+
+    # def __distort_rational(self, points: torch.Tensor) -> torch.Tensor:
+    #
+    #     # given D_params (14 distortion parameters), warp 2D points according to lens distortion
+    #     k1, k2, p1, p2, k3, k4, k5, k6, _, _, _, _, _, _ = torch.unbind(
+    #         self.intr.D_params.unsqueeze(-2), dim=-1
+    #     )
+    #     fx, fy, cx, cy = torch.unbind(
+    #         (self.intr.K_params * self.intr.pixel_unit_ratio()).unsqueeze(-2), dim=-1
+    #     )
+    #
+    #     # Normalize points
+    #     x_n = (points[..., 0] - cx) / fx
+    #     y_n = (points[..., 1] - cy) / fy
+    #
+    #     r2 = x_n**2 + y_n**2
+    #     r4 = r2**2
+    #     r6 = r2**3
+    #
+    #     # Numerator polynomial (1 + k1*r2 + k2*r4 + k3*r6)
+    #     numerator = 1 + k1 * r2 + k2 * r4 + k3 * r6
+    #
+    #     # Denominator polynomial (1 + k4*r2 + k5*r4 + k6*r6)
+    #     denominator = 1 + k4 * r2 + k5 * r4 + k6 * r6
+    #
+    #     radial = numerator / denominator
+    #
+    #     x_d = x_n * radial
+    #     y_d = y_n * radial
+    #
+    #     # Back to pixel coordinates
+    #     u_d = x_d * fx + cx
+    #     v_d = y_d * fy + cy
+    #
+    #     return torch.stack((u_d, v_d), dim=-1)
 
     def distort(self, points: torch.Tensor) -> torch.Tensor:
 
