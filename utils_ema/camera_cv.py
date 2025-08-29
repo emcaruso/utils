@@ -253,11 +253,12 @@ class Intrinsics:
         self.resolution = torch.tensor(
             (new_resolution[1], new_resolution[0]), dtype=torch.long, device=self.device
         )
-        self.K_params[..., 2] -= crop_offset[0]
-        self.K_params[..., 3] -= crop_offset[1]
 
-        self.sensor_size[0] *= ratio_y
-        self.sensor_size[1] *= ratio_x
+        self.K_params[..., 2] = self.K_params[..., 2] / ratio_x + crop_offset[0]
+        self.K_params[..., 3] = self.K_params[..., 3] / ratio_y + crop_offset[1]
+
+        self.sensor_size[0] = ratio_y
+        self.sensor_size[1] = ratio_x
 
         self.update_intrinsics()
         self.compute_undistortion_map()
