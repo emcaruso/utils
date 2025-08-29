@@ -250,13 +250,15 @@ class Intrinsics:
         ratio_x = new_resolution[0] / self.resolution[1]
         ratio_y = new_resolution[1] / self.resolution[0]
 
-        cx_prev = self.K_params[..., 2]
-        cy_prev = self.K_params[..., 3]
-        x0 = crop_offset[0] / self.pixel_unit_ratio()
-        y0 = crop_offset[1] / self.pixel_unit_ratio()
+        res_diff_x = (
+            (self.resolution[1] - new_resolution[0]) / 2 / self.pixel_unit_ratio()
+        )
+        res_diff_y = (
+            (self.resolution[0] - new_resolution[1]) / 2 / self.pixel_unit_ratio()
+        )
 
-        self.K_params[..., 2] = (cx_prev + x0).item()
-        self.K_params[..., 3] = (cy_prev + y0).item()
+        self.K_params[..., 2] += res_diff_x.item()
+        self.K_params[..., 3] += res_diff_y.item()
 
         self.sensor_size[0] *= ratio_y
         self.sensor_size[1] *= ratio_x
