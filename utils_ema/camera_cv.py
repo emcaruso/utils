@@ -254,11 +254,15 @@ class Intrinsics:
             (new_resolution[1], new_resolution[0]), dtype=torch.long, device=self.device
         )
 
-        cx_off = (crop_offset[0] / new_resolution[0]) / self.pixel_unit_ratio()
-        cy_off = (crop_offset[1] / new_resolution[1]) / self.pixel_unit_ratio()
+        cx_off = (
+            (((self.resolution[1] - new_resolution[0])) / 2) - crop_offset[0]
+        ) / self.pixel_unit_ratio()
+        cy_off = (
+            (((self.resolution[0] - new_resolution[1])) / 2) - crop_offset[1]
+        ) / self.pixel_unit_ratio()
 
-        self.K_params[..., 2] -= cx_off.item()
-        self.K_params[..., 3] -= cy_off.item()
+        self.K_params[..., 2] += cx_off.item()
+        self.K_params[..., 3] += cy_off.item()
 
         self.sensor_size[0] *= ratio_y
         self.sensor_size[1] *= ratio_x
