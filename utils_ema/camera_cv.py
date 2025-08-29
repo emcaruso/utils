@@ -254,8 +254,8 @@ class Intrinsics:
         cy_prev = self.K_params[..., 3] * self.pixel_unit_ratio()
         x0, y0 = crop_offset
 
-        self.K_params[..., 2] += cx_prev - x0
-        self.K_params[..., 3] += cy_prev - y0
+        self.K_params[..., 2] += (cx_prev - x0).item()
+        self.K_params[..., 3] += (cy_prev - y0).item()
 
         self.sensor_size[0] *= ratio_y
         self.sensor_size[1] *= ratio_x
