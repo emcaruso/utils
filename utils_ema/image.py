@@ -809,6 +809,17 @@ class Image:
         for img, path in zip(images, paths):
             img.save(path, verbose)
 
+    @staticmethod
+    def parallel_multiple_save(images, paths, verbose):
+        for img, path in zip(images, paths):
+            img.save(path, verbose)
+
+    @classmethod
+    def save_multiple_images_parallel(cls, images, paths, verbose=False):
+        mp.Process(
+            target=self.parallel_multiple_save, args=(images, paths, verbose)
+        ).start()
+
     @classmethod
     def show_multiple_images(
         cls, images, wk=0, name="image", undistort=None, cams=None
