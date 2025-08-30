@@ -817,7 +817,7 @@ class Image:
     @classmethod
     def save_multiple_images_parallel(cls, images, paths, verbose=False):
         mp.Process(
-            target=self.parallel_multiple_save, args=(images, paths, verbose)
+            target=Image.parallel_multiple_save, args=(images, paths, verbose)
         ).start()
 
     @classmethod
