@@ -271,7 +271,9 @@ class Image:
 
     def save_parallel(self, img_path, verbose=True):
         img = self.to("cpu").type(torch.uint8).numpy()
-        mp.Process(target=self.save_base, args=(img, img_path, verbose)).start()
+        process = mp.Process(target=self.save_base, args=(img, img_path, verbose))
+        process.start()
+        return process
 
     def get_indices_with_val(self, val):
         indices = torch.nonzero(self.img == val)
