@@ -73,6 +73,7 @@ class Image:
 
     def to_sparse(self):
         self.img = self.img.to_sparse()
+
         return self
 
     def __del__(self):

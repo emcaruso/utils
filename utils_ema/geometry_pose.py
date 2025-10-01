@@ -196,7 +196,12 @@ class Pose:
         assert type(other) == Pose
         R = self.rotation().T @ other.rotation()
         t = self.rotation().T @ (other.location() - self.location())
-        r = self.orientation_cls.from_rot(R, convention=self.orientation.convention)
+        if self.orientation_cls.__name__ == "Quat":
+            r = self.orientation_cls.from_rot(R)
+        elif self.orientation_cls.__name__ == "eul":
+            r = self.orientation_cls.from_rot(R, convention=self.orientation.convention)
+        else:
+            raise NotImplementedError
         pose = Pose(orientation=r, position=t)
         return pose
 
