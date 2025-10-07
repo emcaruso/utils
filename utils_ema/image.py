@@ -248,7 +248,13 @@ class Image:
         if img.shape[-1] == 2:
             # 2 to 3 channels
             img_out = np.concatenate(
-                [img_out, np.zeros((img_out.shape[0], img_out.shape[1], 1))], axis=-1
+                [
+                    img_out,
+                    np.zeros(
+                        (img_out.shape[0], img_out.shape[1], 1), dtype=img_out.dtype
+                    ),
+                ],
+                axis=-1,
             )
 
         # if w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indow exists already
