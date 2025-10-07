@@ -266,7 +266,7 @@ class Renderer:
     ):
 
         if "mask" not in channels:
-            channels += "mask"
+            channels += ["mask"]
 
         gbuffers = Renderer.diffrast(
             camera, obj, channels=channels, with_antialiasing=with_antialiasing
