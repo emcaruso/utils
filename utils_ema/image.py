@@ -244,6 +244,13 @@ class Image:
             img_out = img.astype(np.uint8) * 255
         else:
             img_out = img
+
+        if img.shape[-1] == 2:
+            # 2 to 3 channels
+            img_out = np.concatenate(
+                [img_out, np.zeros((img_out.shape[0], img_out.shape[1], 1))], axis=-1
+            )
+
         # if w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indow exists already
         # try:
         #     cv2.getWindowProperty(img_name, cv2.WND_PROP_VISIBLE) <= 0
