@@ -430,6 +430,12 @@ class Image:
 
     # grad_x grad_y
     def get_grads(self, kernel_size=3):
+        grad_x, grad_y = self.__get_grads(kernel_size=kernel_size)
+        return tuple(
+            [Image(grad.squeeze(0).permute(1, 2, 0)) for grad in (grad_x, grad_y)]
+        )
+
+    def __get_grads(self, kernel_size=3):
 
         n_channels = self.img.shape[-1]
 
@@ -497,7 +503,7 @@ class Image:
     # sobel
     def sobel_diff(self, kernel_size=3):
 
-        grad_x, grad_y = self.get_grads(kernel_size=kernel_size)
+        grad_x, grad_y = self.__get_grads(kernel_size=kernel_size)
 
         # Compute the gradient magnitude (eps is added to avoid to break gradients)
         # grad_magnitude = torch.sqrt(
