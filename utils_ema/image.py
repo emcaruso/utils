@@ -428,8 +428,8 @@ class Image:
 
             return img
 
-    # sobel
-    def sobel_diff(self, kernel_size=3):
+    # grad_x grad_y
+    def get_grads(self, kernel_size=3):
 
         n_channels = self.img.shape[-1]
 
@@ -492,6 +492,12 @@ class Image:
         grad_y = F.conv2d(
             image, sobel_kernel_y, padding=int(kernel_size / 2), groups=n_channels
         )
+        return grad_x, grad_y
+
+    # sobel
+    def sobel_diff(self, kernel_size=3):
+
+        grad_x, grad_y = self.get_grads(kernel_size=kernel_size)
 
         # Compute the gradient magnitude (eps is added to avoid to break gradients)
         # grad_magnitude = torch.sqrt(
