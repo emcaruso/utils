@@ -99,7 +99,7 @@ class Image:
         mean = img.img.mean(dim=(0, 1), keepdim=True)
 
         # Apply contrast adjustment
-        img.img = (img.img - mean.img) * factor + mean.img
+        img.img = (img.img - mean) * factor + mean
 
         # Clip and rescale
         img.img = img.img.clamp(0.0, 1.0)
