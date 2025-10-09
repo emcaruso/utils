@@ -93,7 +93,7 @@ class Image:
         img = self.clone()
 
         # Ensure float
-        img = self.type(torch.float32)
+        img.set_type(torch.float32)
 
         # Compute mean intensity (gray reference)
         mean = img.img.mean(dim=(0, 1), keepdim=True)
