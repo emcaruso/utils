@@ -90,7 +90,7 @@ class Image:
     def adjust_contrast(self, factor: float):
 
         # clone
-        img = self.img.clone()
+        img = self.clone()
 
         # Ensure float
         img = self.type(torch.float32)
