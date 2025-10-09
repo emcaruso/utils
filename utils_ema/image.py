@@ -87,6 +87,25 @@ class Image:
     def from_path(path):
         return Image(path=path)
 
+    def adjust_contrast(self, factor: float):
+
+        # clone
+        img = self.img.clone()
+
+        # Ensure float
+        img = self.type(torch.float32)
+
+        # Compute mean intensity (gray reference)
+        mean = img.img.mean(dim=(0, 1), keepdim=True)
+
+        # Apply contrast adjustment
+        img.img = (img.img - mean.img) * factor + mean.img
+
+        # Clip and rescale
+        img.img = img.img.clamp(0.0, 1.0)
+
+        return img
+
     def set_type(self, dtype):
         self.img = self.type(dtype)
         self.dtype = dtype
