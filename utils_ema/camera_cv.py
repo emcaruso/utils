@@ -220,7 +220,7 @@ class Intrinsics:
     def uniform_scale(self, s: float, units: str = "scaled"):
         self.K_params *= s
         self.units = units
-        self.sensor_size *= s
+        self.resolution = (self.resolution * s).type(torch.LongTensor).to(self.device)
         if self.K_und is not None:
             self.K_und[..., 0, 0] *= s
             self.K_und[..., 1, 1] *= s
