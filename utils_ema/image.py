@@ -419,7 +419,7 @@ class Image:
             offsets_y = offsets_y.flatten()
 
             # Flatten patches
-            flat_patches = patches.view(-1, channels)
+            flat_patches = patches.reshape(-1, channels)
 
             # Use scatter_add to aggregate patches
             linear_indices = offsets_x * res_y + offsets_y  # Compute flat index
