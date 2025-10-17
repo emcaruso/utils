@@ -18,7 +18,8 @@ class Renderer:
         far (float): Far plane distance
     """
 
-    glctx = dr.RasterizeGLContext()
+    # glctx = dr.RasterizeGLContext()
+    glctx = dr.RasterizeCudaContext()
     near = 0.001
     far = 1e20
 
