@@ -651,10 +651,10 @@ class Image:
         img_new = torch.from_numpy(s)
         return Image.from_img(img_new)
 
-    def dilate(self, n: int):
+    def dilate(self, x: int, y: int):
         if self.is_mask():
             img_new = torch.from_numpy(
-                cv2.dilate(self.img.numpy().astype(np.uint8), np.ones((n, n), np.uint8))
+                cv2.dilate(self.img.numpy().astype(np.uint8), np.ones((x, y), np.uint8))
             )
             return Image.from_img(img_new > 0.5)
 
