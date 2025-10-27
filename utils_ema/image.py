@@ -42,7 +42,7 @@ class Image:
             self.img = img.to(device)
         if path is not None:
             self.img = torch.from_numpy(cv2.imread(path)).to(device)
-            if rgb_to_gbr:
+            if not rgb_to_gbr:
                 self.img = self.img[:, :, [2, 1, 0]]
             # self.img = self.swapped()
 
