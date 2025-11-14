@@ -39,7 +39,13 @@ class Image:
         if img is not None:
             if isinstance(img, np.ndarray):
                 img = torch.from_numpy(img)
-            self.img = img.to(device)
+
+            # change device
+            self.img = img
+            if device != img.device:
+                self.img = self.img.to(device)
+
+            # self.img = img
         if path is not None:
             self.img = torch.from_numpy(cv2.imread(path)).to(device)
             if not rgb_to_gbr:
@@ -299,8 +305,9 @@ class Image:
         img_path = str(img_path)
         Path(img_path).parent.mkdir(parents=True, exist_ok=True)
         cv2.imwrite(img_path, cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        # cv2.imwrite(img_path, img)
         if verbose:
-            print("saved image in: ", img_path)
+            print(f"Image saved at: {img_path}")
 
     def save_parallel(self, img_path, verbose=True):
         img = self.to("cpu").type(torch.uint8).numpy()
@@ -369,83 +376,149 @@ class Image:
 
     @staticmethod
     def patches_to_image(
-        patches, stride_factor, res_x, res_y, max_interp=False, device="cpu"
+        patches, stride_factor, res_x, res_y, use_max=True, device="cpu"
     ):
         with torch.no_grad():
-            # Move patches to the specified device
             patches = patches.to(device)
-
-            # Extract dimensions
             batch, patch_size, _, channels = patches.shape[-4:]
             stride = int(patch_size * stride_factor)
 
-            # Calculate number of patches along each axis
             num_patches_x = (res_x - patch_size) // stride + 1
             num_patches_y = (res_y - patch_size) // stride + 1
 
-            # Compute placement indices for all patches
             idx_x = torch.arange(num_patches_x, device=device) * stride
             idx_y = torch.arange(num_patches_y, device=device) * stride
             grid_x, grid_y = torch.meshgrid(idx_x, idx_y, indexing="ij")
 
-            # Flatten indices
-            grid_x = grid_x.flatten()  # Shape: [batch]
-            grid_y = grid_y.flatten()  # Shape: [batch]
+            grid_x = grid_x.flatten()
+            grid_y = grid_y.flatten()
 
-            # Create empty tensors for image and overlaps
-            img = torch.zeros((res_x, res_y, channels), device=device)
-            count = torch.zeros((res_x, res_y, 1), device=device)
-
-            # Compute offsets for each patch
             offsets_x = grid_x.unsqueeze(1) + torch.arange(
                 patch_size, device=device
-            ).unsqueeze(
-                0
-            )  # [batch, patch_size]
+            ).unsqueeze(0)
             offsets_y = grid_y.unsqueeze(1) + torch.arange(
                 patch_size, device=device
-            ).unsqueeze(
-                0
-            )  # [batch, patch_size]
-            offsets_x = offsets_x.unsqueeze(2).expand(
-                -1, -1, patch_size
-            )  # [batch, patch_size, patch_size]
-            offsets_y = offsets_y.unsqueeze(1).expand(
-                -1, patch_size, -1
-            )  # [batch, patch_size, patch_size]
+            ).unsqueeze(0)
+            offsets_x = offsets_x.unsqueeze(2).expand(-1, -1, patch_size)
+            offsets_y = offsets_y.unsqueeze(1).expand(-1, patch_size, -1)
 
-            # Flatten offsets
             offsets_x = offsets_x.flatten()
             offsets_y = offsets_y.flatten()
 
-            # Flatten patches
             flat_patches = patches.reshape(-1, channels)
+            linear_indices = offsets_x * res_y + offsets_y
 
-            # Use scatter_add to aggregate patches
-            linear_indices = offsets_x * res_y + offsets_y  # Compute flat index
             img_flat = torch.zeros((res_x * res_y, channels), device=device)
             count_flat = torch.zeros((res_x * res_y, 1), device=device)
 
-            img_flat.scatter_add_(
-                0, linear_indices.unsqueeze(-1).expand_as(flat_patches), flat_patches
-            )
-            count_flat.scatter_add_(
-                0, linear_indices.unsqueeze(-1), torch.ones_like(flat_patches[..., :1])
-            )
+            if use_max:
+                # Scatter max (PyTorch ≥ 1.12)
+                img_flat.scatter_reduce_(
+                    0,
+                    linear_indices.unsqueeze(-1).expand_as(flat_patches),
+                    flat_patches,
+                    reduce="amax",
+                    include_self=False,
+                )
+            else:
+                # Scatter sum + average for overlap
+                img_flat.scatter_add_(
+                    0,
+                    linear_indices.unsqueeze(-1).expand_as(flat_patches),
+                    flat_patches,
+                )
+                count_flat.scatter_add_(
+                    0,
+                    linear_indices.unsqueeze(-1),
+                    torch.ones_like(flat_patches[..., :1]),
+                )
 
-            # Reshape back to 2D
             img = img_flat.view(res_x, res_y, channels)
-            count = count_flat.view(res_x, res_y, 1)
 
-            # Normalize by overlap count
-            img = img / count.clamp(min=1)
-
-            # # Apply max interpolation if required
-            # if max_interp:
-            #     max_img = torch.zeros_like(img)
-            #     max_img.scatter_add_(0, linear_indices, torch.max())
+            if not use_max:
+                count = count_flat.view(res_x, res_y, 1)
+                img = img / count.clamp(min=1)
 
             return img
+
+    # def patches_to_image(
+    #     patches, stride_factor, res_x, res_y, max_interp=False, device="cpu"
+    # ):
+    #     with torch.no_grad():
+    #         # Move patches to the specified device
+    #         patches = patches.to(device)
+    #
+    #         # Extract dimensions
+    #         batch, patch_size, _, channels = patches.shape[-4:]
+    #         stride = int(patch_size * stride_factor)
+    #
+    #         # Calculate number of patches along each axis
+    #         num_patches_x = (res_x - patch_size) // stride + 1
+    #         num_patches_y = (res_y - patch_size) // stride + 1
+    #
+    #         # Compute placement indices for all patches
+    #         idx_x = torch.arange(num_patches_x, device=device) * stride
+    #         idx_y = torch.arange(num_patches_y, device=device) * stride
+    #         grid_x, grid_y = torch.meshgrid(idx_x, idx_y, indexing="ij")
+    #
+    #         # Flatten indices
+    #         grid_x = grid_x.flatten()  # Shape: [batch]
+    #         grid_y = grid_y.flatten()  # Shape: [batch]
+    #
+    #         # Create empty tensors for image and overlaps
+    #         img = torch.zeros((res_x, res_y, channels), device=device)
+    #         count = torch.zeros((res_x, res_y, 1), device=device)
+    #
+    #         # Compute offsets for each patch
+    #         offsets_x = grid_x.unsqueeze(1) + torch.arange(
+    #             patch_size, device=device
+    #         ).unsqueeze(
+    #             0
+    #         )  # [batch, patch_size]
+    #         offsets_y = grid_y.unsqueeze(1) + torch.arange(
+    #             patch_size, device=device
+    #         ).unsqueeze(
+    #             0
+    #         )  # [batch, patch_size]
+    #         offsets_x = offsets_x.unsqueeze(2).expand(
+    #             -1, -1, patch_size
+    #         )  # [batch, patch_size, patch_size]
+    #         offsets_y = offsets_y.unsqueeze(1).expand(
+    #             -1, patch_size, -1
+    #         )  # [batch, patch_size, patch_size]
+    #
+    #         # Flatten offsets
+    #         offsets_x = offsets_x.flatten()
+    #         offsets_y = offsets_y.flatten()
+    #
+    #         # Flatten patches
+    #         flat_patches = patches.reshape(-1, channels)
+    #
+    #         # Use scatter_add to aggregate patches
+    #         linear_indices = offsets_x * res_y + offsets_y  # Compute flat index
+    #         img_flat = torch.zeros((res_x * res_y, channels), device=device)
+    #         count_flat = torch.zeros((res_x * res_y, 1), device=device)
+    #
+    #         img_flat.scatter_add_(
+    #             0, linear_indices.unsqueeze(-1).expand_as(flat_patches), flat_patches
+    #         )
+    #         count_flat.scatter_add_(
+    #             0, linear_indices.unsqueeze(-1), torch.ones_like(flat_patches[..., :1])
+    #         )
+    #
+    #         # Reshape back to 2D
+    #         img = img_flat.view(res_x, res_y, channels)
+    #         count = count_flat.view(res_x, res_y, 1)
+    #
+    #         # Normalize by overlap count
+    #         img = img / count.clamp(min=1)
+    #
+    #         # # Apply max interpolation if required
+    #         # if max_interp:
+    #         #     max_img = torch.zeros_like(img)
+    #         #     max_img.scatter_add_(0, linear_indices, torch.max())
+    #
+    #         return img
 
     # grad_x grad_y
     def get_grads(self, kernel_size=3):
