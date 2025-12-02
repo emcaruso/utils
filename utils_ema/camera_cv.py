@@ -63,7 +63,7 @@ class Intrinsics:
         units: str = "meters",
         dtype=torch.float32,
         device: str = "cpu",
-        delta_resolution: int = 64,
+        delta_resolution: Optional[int] = None,
     ):
         self.units = units
         self.dtype = dtype
@@ -71,13 +71,16 @@ class Intrinsics:
         self.resolution = resolution
         self.device = device
         self.delta_resolution = (delta_resolution, delta_resolution)
-        self.delta_map = torch.zeros(
-            list(self.resolution.shape)[:-1]
-            + [self.delta_resolution[0], self.delta_resolution[1], 2],
-            device=device,
-            dtype=dtype,
-            requires_grad=True,
-        )
+        if delta_resolution is None:
+            self.delta_map = torch.zeros(
+                list(self.resolution.shape)[:-1]
+                + [self.delta_resolution[0], self.delta_resolution[1], 2],
+                device=device,
+                dtype=dtype,
+                requires_grad=True,
+            )
+        else:
+            self.delta_map = None
         self.D_params = D if D is not None else None
         self.K_params = torch.zeros(K.shape[:-2] + (4,), device=self.device)
         self.K_params[..., 0] = K[..., 0, 0]
@@ -787,7 +790,10 @@ class Camera_cv:
         elif self.intr.D_params.shape[-1] == 14:
             res = self.__distort_rational(points)
 
-        return self.intr.distort_with_delta_grid(res)
+        if self.intr.delta_map is not None:
+            return self.intr.distort_with_delta_grid(res)
+        else:
+            return res
 
     def test_pix2ray(self):
         rows = self.intr.resolution[0]
