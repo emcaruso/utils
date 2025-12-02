@@ -63,7 +63,7 @@ class Intrinsics:
         units: str = "meters",
         dtype=torch.float32,
         device: str = "cpu",
-        delta_resolution: int = 16,
+        delta_resolution: int = 64,
     ):
         self.units = units
         self.dtype = dtype
