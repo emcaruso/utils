@@ -71,7 +71,7 @@ class Intrinsics:
         self.resolution = resolution
         self.device = device
         self.delta_resolution = (delta_resolution, delta_resolution)
-        if delta_resolution is None:
+        if delta_resolution is not None:
             self.delta_map = torch.zeros(
                 list(self.resolution.shape)[:-1]
                 + [self.delta_resolution[0], self.delta_resolution[1], 2],
