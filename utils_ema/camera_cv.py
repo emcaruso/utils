@@ -306,12 +306,71 @@ class Intrinsics:
             self.K_und[..., 1, 1] *= s
             self.K_und[..., :2, -1] *= s
 
+    def undistort_delta_map(self, img: Image):
+        """
+        1. Undistort using OpenCV remap (radial/tangential).
+        2. Apply inverse delta-map warp to remove local distortion.
+        """
+
+        # -----------------------------
+        # 1) Classical OpenCV undistort
+        # -----------------------------
+        undistorted_np = cv2.remap(
+            img.numpy(),  # (H,W,3)
+            self.undist_map[0],  # map_x   (H,W)
+            self.undist_map[1],  # map_y   (H,W)
+            cv2.INTER_LINEAR,
+        )
+
+        und = torch.from_numpy(undistorted_np)  # (H,W,3)
+        H, W = und.shape[:2]
+
+        # -----------------------------
+        # 2) Inverse delta-map warp
+        # -----------------------------
+        # Build pixel grid (u,v)
+        ys, xs = torch.meshgrid(
+            torch.arange(H, dtype=torch.float32, device=und.device),
+            torch.arange(W, dtype=torch.float32, device=und.device),
+            indexing="ij",
+        )
+        pts = torch.stack([xs, ys], dim=-1)  # (H,W,2)
+
+        # Compute delta at pixel positions
+        delta = self.distort_with_delta_grid(pts) - pts  # (H,W,2)
+
+        # Inverse warp = p - delta(p)
+        inv_pts = pts - delta  # (H,W,2)
+
+        # Convert to normalized coords for grid_sample
+        inv_norm = inv_pts.clone()
+        inv_norm[..., 0] = 2.0 * (inv_pts[..., 0] / (W - 1)) - 1.0
+        inv_norm[..., 1] = 2.0 * (inv_pts[..., 1] / (H - 1)) - 1.0
+
+        # grid_sample expects [B,C,H,W]
+        und_bchw = und.permute(2, 0, 1).unsqueeze(0)  # [1,3,H,W]
+        grid = inv_norm.unsqueeze(0)  # [1,H,W,2]
+
+        und2 = torch.nn.functional.grid_sample(
+            und_bchw,
+            grid,
+            align_corners=True,
+        )[0].permute(
+            1, 2, 0
+        )  # → (H,W,3)
+
+        return Image(und2)
+
     def undistort_image(self, img: Image):
         undistorted = cv2.remap(
             img.numpy(), self.undist_map[0], self.undist_map[1], cv2.INTER_LINEAR
         )
 
         img_und = Image(torch.from_numpy(undistorted))
+
+        # undistort delta_map
+        if self.delta_map is not None:
+            img_und = self.undistort_delta_map(img_und)
 
         # x,y,w,h = self.roi_und
         # undistorted = undistorted[y:y+h, x:x+w]
