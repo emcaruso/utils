@@ -105,46 +105,55 @@ class Intrinsics:
 
     def distort_with_delta_grid(self, points: torch.Tensor) -> torch.Tensor:
         """
-        Warp 2D pixel coordinates using bilinear interpolation of delta_map.
-        points: (..., 2)  in pixel coords (u, v)
-        returns: (..., 2) distorted pixel coords
+        Warp 2D pixel coords using bilinear interpolation over delta_map.
+        points: [..., N, 2]
+        delta_map: [..., H, W, 2]
         """
 
-        # Convert points to normalized coords for grid_sample
-        norm_pts = self._points_to_normalized_grid(points)
+        # 1. Convert to normalized grid coords
+        norm_pts = self._points_to_normalized_grid(points)  # [..., N, 2]
 
-        # delta_map: [..., 16, 16, 2]
-        orig_batch = self.delta_map.shape[:-3]  # [...]
+        # Extract dims
+        *batch_dims, N, _ = norm_pts.shape  # batch_dims = [16,2,5]
+        H, W = self.delta_map.shape[-3:-1]  # (16,16)
 
-        # Permute delta to match grid_sample: [Bflat, 2, 16, 16]
-        delta = self.delta_map.permute(
-            *range(len(orig_batch)), -1, -3, -2
-        )  # [..., 2, H, W]
+        # ------------------------------------------------------------
+        # 2. Broadcast delta_map to match points' batch dims
+        # ------------------------------------------------------------
+        # delta_map: [1, 2, 1, 16,16, 2]
+        delta = self.delta_map.expand(*batch_dims, H, W, 2)  # [16,2,5,16,16,2]
 
-        # points: [..., N, 2]
-        N = points.shape[-2]
-        orig_shape = points.shape[:-1]  # [..., N]
+        # Convert to grid-sample format: [..., 2, H, W]
+        delta = delta.permute(*range(len(batch_dims)), -1, -3, -2)  # [16,2,5,2,16,16]
 
-        # Normalize already done → norm_pts: [..., N, 2]
+        # ------------------------------------------------------------
+        # 3. Prepare for grid_sample
+        # ------------------------------------------------------------
+        # grid_sample expects shape [B, 2, H, W]
+        Bflat = int(torch.prod(torch.tensor(batch_dims)))  # 16*2*5 = 160
 
-        # Flatten leading dims
-        Bflat = int(torch.prod(torch.tensor(orig_batch))) if len(orig_batch) else 1
+        delta_flat = delta.reshape(Bflat, 2, H, W)  # [160,2,16,16]
 
-        delta_flat = delta.reshape(Bflat, 2, 16, 16)  # [Bflat, 2, 16, 16]
-        pts_flat = norm_pts.reshape(Bflat, 1, N, 2)  # [Bflat, 1, N, 2]
+        # grid_sample wants [B, H_out, W_out, 2] or [B, 1, N, 2]
+        pts_flat = norm_pts.reshape(Bflat, 1, N, 2)  # [160,1,81,2]
 
-        # Bilinear interpolation
+        # ------------------------------------------------------------
+        # 4. Bilinear interpolation
+        # ------------------------------------------------------------
         sampled = torch.nn.functional.grid_sample(
             delta_flat, pts_flat, align_corners=True
         )
-        # → [Bflat, 2, 1, N]
+        # sampled: [160, 2, 1, 81]
 
-        # Format back to [..., N, 2]
-        sampled = sampled.squeeze(2).permute(0, 2, 1)  # [Bflat, N, 2]
+        # ------------------------------------------------------------
+        # 5. Reshape back to original structure
+        # ------------------------------------------------------------
+        sampled = sampled.squeeze(2).permute(0, 2, 1)  # [160, 81, 2]
+        sampled = sampled.reshape(*batch_dims, N, 2)  # [16,2,5,81,2]
 
-        sampled = sampled.reshape(*orig_batch, N, 2)  # [..., N, 2]
-
-        # Return distorted points
+        # ------------------------------------------------------------
+        # 6. Return distorted points
+        # ------------------------------------------------------------
         return points + sampled
 
     def update_intrinsics(self):
