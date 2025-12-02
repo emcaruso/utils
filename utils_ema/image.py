@@ -47,8 +47,12 @@ class Image:
 
             # self.img = img
         if path is not None:
-            self.img = torch.from_numpy(cv2.imread(path)).to(device)
-            if not rgb_to_gbr:
+            img_np = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+            if img_np.dtype == np.uint16:
+                img_np = (img_np / 65535.0).astype(np.float32)
+
+            self.img = torch.from_numpy(img_np).to(device)
+            if not rgb_to_gbr and self.img.shape[-1] == 3:
                 self.img = self.img[:, :, [2, 1, 0]]
             # self.img = self.swapped()
 
@@ -296,22 +300,46 @@ class Image:
         key = self.__show_img(self.numpy(), img_name=img_name, wk=wk)
         return key
 
-    def save(self, img_path, verbose=False):
-        img = self.to("cpu").type(torch.uint8).numpy()
-        self.save_base(img, img_path, verbose)
+    def save(self, img_path, verbose=False, uint16=False):
+        self.save_base(self.img, img_path, verbose, uint16=uint16)
 
     @staticmethod
-    def save_base(img, img_path, verbose):
+    def save_base(img, img_path, verbose, uint16=False):
+        if type(img) == torch.Tensor:
+            if not uint16:
+                img_np = img.to("cpu")
+                if img.dtype == torch.float32 or img.dtype == torch.float64:
+                    img_np = (img_np * 255).type(torch.uint8)
+                elif img.dtype == torch.bool:
+                    img_np = img_np.type(torch.uint8) * 255
+                img_np = img_np.type(torch.uint8)
+                img_np = img_np.numpy()
+            else:
+                img_np = img.to("cpu").numpy()
+                if img.dtype == torch.uint8:
+                    img_np = img_np.astype(np.uint16) * 257
+                elif img.dtype in [torch.float32, torch.float64]:
+                    img_np = (img_np * 65535).astype(np.uint16)
+                elif img.dtype == torch.bool:
+                    img_np = img_np.astype(np.uint16) * 65535
+                else:
+                    raise ValueError(
+                        f"Cannot save image of dtype {img_np.dtype} as uint16"
+                    )
+        else:
+            img_np = img
+
         img_path = str(img_path)
         Path(img_path).parent.mkdir(parents=True, exist_ok=True)
-        cv2.imwrite(img_path, cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        cv2.imwrite(img_path, cv2.cvtColor(img_np, cv2.COLOR_BGR2RGB))
         # cv2.imwrite(img_path, img)
         if verbose:
             print(f"Image saved at: {img_path}")
 
-    def save_parallel(self, img_path, verbose=True):
-        img = self.to("cpu").type(torch.uint8).numpy()
-        process = mp.Process(target=self.save_base, args=(img, img_path, verbose))
+    def save_parallel(self, img_path, verbose=True, uint16=False):
+        process = mp.Process(
+            target=self.save_base, args=(self.img, img_path, verbose, uint16)
+        )
         process.start()
         return process
 

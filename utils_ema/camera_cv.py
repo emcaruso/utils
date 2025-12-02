@@ -63,12 +63,20 @@ class Intrinsics:
         units: str = "meters",
         dtype=torch.float32,
         device: str = "cpu",
+        delta_resolution: int = 16,
     ):
         self.units = units
         self.dtype = dtype
         self.sensor_size = sensor_size
         self.resolution = resolution
         self.device = device
+        self.delta_resolution = (delta_resolution, delta_resolution)
+        self.delta_map = torch.zeros(
+            (self.delta_resolution[0], self.delta_resolution[1], 2),
+            device=device,
+            dtype=dtype,
+            requires_grad=True,
+        )
         self.D_params = D if D is not None else None
         self.K_params = torch.zeros(K.shape[:-2] + (4,), device=self.device)
         self.K_params[..., 0] = K[..., 0, 0]
@@ -78,6 +86,54 @@ class Intrinsics:
         self.update_intrinsics()
         self.type(dtype)
         self.compute_undistortion_map()
+
+    def _points_to_normalized_grid(self, points: torch.Tensor) -> torch.Tensor:
+        """
+        Converts pixel coordinates to [-1, 1] normalized grid sample coordinates.
+        points: (..., 2)   with (u, v) in pixel indices
+        returns: (..., 2)  in normalized coords for grid_sample
+        """
+        W = self.resolution[1]
+        H = self.resolution[0]
+
+        # u in [0, W-1] → x_norm in [-1, 1]
+        x = 2.0 * (points[..., 0] / (W - 1.0)) - 1.0
+        y = 2.0 * (points[..., 1] / (H - 1.0)) - 1.0
+
+        return torch.stack([x, y], dim=-1)
+
+    def distort_with_delta_grid(self, points: torch.Tensor) -> torch.Tensor:
+        """
+        Warp 2D pixel coordinates using bilinear interpolation of delta_map.
+        points: (..., 2)  in pixel coords (u, v)
+        returns: (..., 2) distorted pixel coords
+        """
+
+        # Convert points to normalized coords for grid_sample
+        norm_pts = self._points_to_normalized_grid(points)
+
+        # Prepare delta_map for grid_sample
+        # Shape required: (1, C, H, W)
+        delta = self.delta_map.permute(2, 0, 1).unsqueeze(0)  # [1, 2, H=16, W=16]
+
+        # grid_sample requires shape [N, H_out, W_out, 2]
+        # But we sample individual points, so flatten then reshape back
+        orig_shape = points.shape[:-1]
+
+        pts_flat = norm_pts.reshape(1, -1, 1, 2)  # [1, N, 1, 2]
+
+        # Bilinear interpolation
+        sampled = torch.nn.functional.grid_sample(
+            delta, pts_flat, align_corners=True
+        )  # → [1, 2, N, 1]
+
+        sampled = sampled.squeeze(0).squeeze(-1).transpose(0, 1)  # [N, 2]
+
+        # Reshape back
+        sampled = sampled.reshape(*orig_shape, 2)
+
+        # return distorted 2D points
+        return points + sampled
 
     def update_intrinsics(self):
         self.K = self.get_K()
@@ -702,13 +758,15 @@ class Camera_cv:
 
         assert torch.is_tensor(points)
         if self.intr.D_params is None:
-            return points
+            res = points
 
         if self.intr.D_params.shape[-1] == 5:
-            return self.__distort_standard(points)
+            res = self.__distort_standard(points)
 
         elif self.intr.D_params.shape[-1] == 14:
-            return self.__distort_rational(points)
+            res = self.__distort_rational(points)
+
+        return self.intr.distort_with_delta_grid(res)
 
     def test_pix2ray(self):
         rows = self.intr.resolution[0]

@@ -180,7 +180,9 @@ class Mesh:
             else (
                 torch.tensor(uv, dtype=torch.float32, device=device)
                 if uv is not None
-                else None
+                else torch.zeros(
+                    (len(self.vertices), 2), dtype=torch.float32, device=device
+                )
             )
         )
 
@@ -489,6 +491,11 @@ class Mesh:
 
         return area
 
+    def get_bounding_box(self):
+        min_p = torch.amin(self.vertices, dim=0)
+        max_p = torch.amax(self.vertices, dim=0)
+        return AABB(points=torch.stack([min_p, max_p], dim=0).cpu().numpy())
+
 
 def _is_point_in_triangle(pt, tri_uv):
     """
@@ -573,3 +580,7 @@ class AABB:
                 [self.min_p[0], self.max_p[1], self.max_p[2]],
             ]
         )
+
+    @property
+    def lenghts(self):
+        return self.max_p - self.min_p

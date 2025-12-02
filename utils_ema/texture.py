@@ -35,9 +35,6 @@ class Texture(Image):
         self.img[pixels[:, 1], pixels[:, 0], :] = colors
         self.img = self.img.flip(0)
 
-    def save(self, path):
-        super().save(path)
-
     def load(self, path):
         super().__init__(path=path)
 

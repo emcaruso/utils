@@ -143,7 +143,13 @@ class Renderer:
 
     @classmethod
     def diffrast(
-        cls, camera, obj, channels, with_antialiasing=False, get_rast_idx=False
+        cls,
+        camera,
+        obj,
+        channels,
+        with_antialiasing=False,
+        get_rast_idx=False,
+        back=None,
     ):
 
         # import ipdb
@@ -192,8 +198,19 @@ class Renderer:
         mesh = obj.mesh.with_vertices(v)
         # v = mesh.vertices.to(device)
         n = mesh.vertex_normals.to(device)
+
         idx = mesh.indices.int().to(device)
         pos = Renderer.transform_pos(P, v)
+
+        if back is not None:
+
+            idx_back = back.indices.int().to(device)
+            pos_back = Renderer.transform_pos(P, back.vertices.to(device))
+            rast, _ = dr.rasterize(cls.glctx, pos_back, idx_back, resolution=r)
+            depth_back = rast[..., -2]
+
+            # idx = torch.cat([idx, idx_back + len(v)], dim=0)
+            # pos = torch.cat([pos, pos_back], dim=1)
 
         # pos = pos.type(torch.float32)
         # camera.dtype(torch.float32)
@@ -205,6 +222,13 @@ class Renderer:
         # ipdb.set_trace()
 
         rast, _ = dr.rasterize(cls.glctx, pos, idx, resolution=r)
+
+        if back is not None:
+            depth = rast[..., -2]
+            mask_foreground = (depth_back < depth) & (depth_back > 0)
+            rast[mask_foreground] = rast[mask_foreground]
+        else:
+            mask_foreground = None
 
         # Collect arbitrary output variables (aovs)
         if "mask" in channels:
@@ -247,6 +271,10 @@ class Renderer:
                 dr.antialias(uv, rast, pos, idx)[0] if with_antialiasing else uv[0]
             )
 
+        if mask_foreground is not None:
+            for gbuf in gbuffer.keys():
+                gbuffer[gbuf][mask_foreground[0]] = 0
+
         # del pos, idx
         # torch.cuda.empty_cache()
         if get_rast_idx:
@@ -264,13 +292,18 @@ class Renderer:
         channels=["mask", "position", "normal"],
         no_contour=True,
         with_antialiasing=False,
+        back=None,
     ):
 
         if "mask" not in channels:
             channels += ["mask"]
 
         gbuffers = Renderer.diffrast(
-            camera, obj, channels=channels, with_antialiasing=with_antialiasing
+            camera,
+            obj,
+            channels=channels,
+            with_antialiasing=with_antialiasing,
+            back=back,
         )
         # Image(gbuffers["uv"][:, :, 0]).show()
 
