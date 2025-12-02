@@ -72,7 +72,8 @@ class Intrinsics:
         self.device = device
         self.delta_resolution = (delta_resolution, delta_resolution)
         self.delta_map = torch.zeros(
-            (self.delta_resolution[0], self.delta_resolution[1], 2),
+            list(self.resolution.shape)[:-2]
+            + [self.delta_resolution[0], self.delta_resolution[1], 2],
             device=device,
             dtype=dtype,
             requires_grad=True,
@@ -93,8 +94,8 @@ class Intrinsics:
         points: (..., 2)   with (u, v) in pixel indices
         returns: (..., 2)  in normalized coords for grid_sample
         """
-        W = self.resolution[1]
-        H = self.resolution[0]
+        W = self.resolution[..., 1].item()
+        H = self.resolution[..., 0].item()
 
         # u in [0, W-1] → x_norm in [-1, 1]
         x = 2.0 * (points[..., 0] / (W - 1.0)) - 1.0
