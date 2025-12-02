@@ -72,7 +72,7 @@ class Intrinsics:
         self.device = device
         self.delta_resolution = (delta_resolution, delta_resolution)
         self.delta_map = torch.zeros(
-            list(self.resolution.shape)[:-2]
+            list(self.resolution.shape)[:-1]
             + [self.delta_resolution[0], self.delta_resolution[1], 2],
             device=device,
             dtype=dtype,
