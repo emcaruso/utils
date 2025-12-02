@@ -94,8 +94,8 @@ class Intrinsics:
         points: (..., 2)   with (u, v) in pixel indices
         returns: (..., 2)  in normalized coords for grid_sample
         """
-        W = self.resolution[..., 1].item()
-        H = self.resolution[..., 0].item()
+        W = self.resolution[..., 1].unsqueeze(-2)
+        H = self.resolution[..., 0].unsqueeze(-2)
 
         # u in [0, W-1] → x_norm in [-1, 1]
         x = 2.0 * (points[..., 0] / (W - 1.0)) - 1.0
