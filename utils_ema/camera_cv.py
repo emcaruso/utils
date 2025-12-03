@@ -296,23 +296,12 @@ class Intrinsics:
             self.K_und[..., 1, 1] *= s
             self.K_und[..., :2, -1] *= s
 
-    def undistort_delta_map(self, img: Image):
+    def undistort_delta_map(self, und: Image):
         """
         1. Undistort using OpenCV remap (radial/tangential).
         2. Apply inverse delta-map warp to remove local distortion.
         """
 
-        # -----------------------------
-        # 1) Classical OpenCV undistort
-        # -----------------------------
-        undistorted_np = cv2.remap(
-            img.numpy(),  # (H,W,3)
-            self.undist_map[0],  # map_x   (H,W)
-            self.undist_map[1],  # map_y   (H,W)
-            cv2.INTER_LINEAR,
-        )
-
-        und = torch.from_numpy(undistorted_np)  # (H,W,3)
         H, W = und.shape[:2]
 
         # -----------------------------
@@ -893,64 +882,6 @@ class Camera_cv:
         )
         return camera
 
-
-# class Camera_on_sphere(Camera_cv):
-
-#     def __init__(self, az_el, az_el_idx, K=torch.FloatTensor( [[30,0,18],[0,30,18],[0,0,1]]), pose=None, resolution=torch.LongTensor([700,700]), images=None, name="Unk Cam on sphere" ):
-#         super().__init__(K=K, pose=pose, resolution=resolution, images=images, name=name)
-#         self.alpha = az_el
-
-#     def pix2eps( self, pix ):
-#         assert( pix.dtype==torch.float32)
-#         eps = -torch.arctan2(((pix-(self.intr.resolution/2))*self.millimeters_pixel_ratio), self.lens())
-#         return eps
-
-#     def get_sample_from_pixs( self, pixs ):
-#         eps = self.pix2eps( pixs )
-#         alpha = repeat_tensor_to_match_shape(self.alpha, eps.shape)
-#         sample = { 'eps':eps, 'alpha':alpha }
-#         return sample
-
-#     def sample_pixels_from_err_img( self, num_pixels, show=True ):
-#         pixs = sample_from_image_pdf( self.images["err"], num_pixels )
-
-#         # show sampled pixels
-#         if show:
-#             show_pixs(pixs, self.images["err"].shape,wk=1)
-
-#         pixs = torch.FloatTensor( pixs+0.5 )
-#         return pixs
-
-
-#     def render_ddf( self, ddf, device, wk=0, update_err=False, path_err="" , prt=False):
-
-#         # for k,v in self.images.items():
-#         #     if k=="err":
-#         #         continue
-#         #     show_image( k+":_gt", v.numpy(), wk )
-
-#         with torch.no_grad():
-#             grid = self.get_pixel_grid()
-#             sample = self.get_sample_from_pixs( grid )
-#             sample = dict_to_device(sample, device)
-#             output = ddf.forward( sample ).detach().cpu()
-#             count = 0
-#             errs = []
-#             for k,v in self.images.items():
-#                 if k=="err":
-#                     continue
-#                 o = output[...,count:count+v.shape[-1]]
-#                 count += v.shape[-1]
-#                 errs.append(torch.abs(o-v))
-#                 show_image( k, o.numpy(), wk )
-
-#             if update_err:
-#                 err = torch.cat( errs, dim=-1 )
-#                 err = torch.norm(err, dim=-1)
-#                 if prt:
-#                     print("err: "+str(torch.sum(err).item()))
-#                 cv2.imwrite(path_err+"/"+self.name+".png", err.numpy()*255)
-#                 show_image("err", err, wk)
 
 if __name__ == "__main__":
     # c = Camera_on_sphere()
