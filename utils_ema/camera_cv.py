@@ -349,7 +349,12 @@ class Intrinsics:
             1, 2, 0
         )  # → (H,W,3)
 
-        return Image(und2)
+        res = Image(und2)
+
+        import ipdb
+
+        ipdb.set_trace()
+        return res
 
     def undistort_image(self, img: Image):
         undistorted = cv2.remap(
