@@ -296,12 +296,13 @@ class Intrinsics:
             self.K_und[..., 1, 1] *= s
             self.K_und[..., :2, -1] *= s
 
-    def undistort_delta_map(self, und: Image):
+    def undistort_delta_map(self, img: Image):
         """
         1. Undistort using OpenCV remap (radial/tangential).
         2. Apply inverse delta-map warp to remove local distortion.
         """
 
+        und = img.img
         H, W = und.shape[:2]
 
         # -----------------------------
