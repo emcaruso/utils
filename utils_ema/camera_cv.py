@@ -314,14 +314,13 @@ class Intrinsics:
             torch.arange(W, dtype=torch.float32, device=und.device),
             indexing="ij",
         )
-        # pts = torch.stack([xs, ys], dim=-1)  # (H,W,2)
-        pts = torch.stack([ys, xs], dim=-1)  # (H,W,2)
+        pts = torch.stack([xs, ys], dim=-1)  # (H,W,2)
 
         # Compute delta at pixel positions
         delta = self.distort_with_delta_grid(pts) - pts  # (H,W,2)
 
         # Inverse warp = p - delta(p)
-        inv_pts = pts - delta  # (H,W,2)
+        inv_pts = pts + delta  # (H,W,2)
 
         # Convert to normalized coords for grid_sample
         inv_norm = inv_pts.clone()
