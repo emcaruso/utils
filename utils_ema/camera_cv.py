@@ -63,24 +63,14 @@ class Intrinsics:
         units: str = "meters",
         dtype=torch.float32,
         device: str = "cpu",
-        delta_resolution: Optional[int] = None,
+        delta_map: Optional[torch.Tensor] = None,
     ):
         self.units = units
         self.dtype = dtype
         self.sensor_size = sensor_size
         self.resolution = resolution
         self.device = device
-        self.delta_resolution = (delta_resolution, delta_resolution)
-        if delta_resolution is not None:
-            self.delta_map = torch.zeros(
-                list(self.resolution.shape)[:-1]
-                + [self.delta_resolution[0], self.delta_resolution[1], 2],
-                device=device,
-                dtype=dtype,
-                requires_grad=True,
-            )
-        else:
-            self.delta_map = None
+        self.delta_map = delta_map
         self.D_params = D if D is not None else None
         self.K_params = torch.zeros(K.shape[:-2] + (4,), device=self.device)
         self.K_params[..., 0] = K[..., 0, 0]
