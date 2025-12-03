@@ -351,9 +351,6 @@ class Intrinsics:
 
         res = Image(und2)
 
-        import ipdb
-
-        ipdb.set_trace()
         return res
 
     def undistort_image(self, img: Image):
