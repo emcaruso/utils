@@ -69,6 +69,10 @@ class Image:
                 f" n_channels (last image dimension) has to be 1 (gray), 2 (uv), 3 (rgb) or 4 (rgba), got {self.img.shape[-1]}"
             )
 
+        if self.img.shape[-1] == 4:
+            # remove alpha channel
+            self.img = self.img[:, :, :3]
+
         if resolution_drop != 1.0:
             self.resize(resolution_drop=resolution_drop)
 
