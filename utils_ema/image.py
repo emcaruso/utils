@@ -341,6 +341,11 @@ class Image:
             print(f"Image saved at: {img_path}")
 
     def save_parallel(self, img_path, verbose=True, uint16=False):
+        dtype = self.img.dtype
+        if dtype == torch.float32 or dtype == torch.float64:
+            self.img = (self.img.numpy() * 255).copy().astype("uint8")
+        else:
+            self.img = self.img.numpy().copy().astype("uint8")
         process = mp.Process(
             target=self.save_base, args=(self.img, img_path, verbose, uint16)
         )
@@ -876,6 +881,55 @@ class Image:
         cols = sampled_indices % new_img.shape[1]
 
         return torch.stack((cols, rows), dim=1)
+
+    def putTextRTL(
+        self,
+        img,
+        text,
+        org,
+        fontFace,
+        fontScale,
+        color,
+        thickness=1,
+        lineType=cv2.LINE_AA,
+    ):
+        """
+        Draw right-to-left mirrored text using cv2.putText.
+
+        Args:
+            img: BGR image
+            text: string
+            org: (x, y) baseline origin (top-left reference of the final text block)
+            fontFace, fontScale, color, thickness, lineType: same as cv2.putText
+        """
+        # --- 1) Get text size ---
+        (w, h), baseline = cv2.getTextSize(text, fontFace, fontScale, thickness)
+
+        # --- 2) Create a temporary canvas ---
+        tmp = np.zeros((h + baseline + 5, w + 5, 3), dtype=np.uint8)
+
+        # --- 3) Draw text normally (left-to-right) ---
+        cv2.putText(tmp, text, (0, h), fontFace, fontScale, color, thickness, lineType)
+
+        # --- 4) Flip horizontally ---
+        tmp_flipped = cv2.flip(tmp, 1)
+
+        # --- 5) Paste into target image ---
+        x, y = org
+        H, W = img.shape[:2]
+
+        x1 = max(0, x)
+        y1 = max(0, y - h)
+        x2 = min(W, x + w)
+        y2 = min(H, y + baseline + 5)
+
+        roi = img[y1:y2, x1:x2]
+        patch = tmp_flipped[(y1 - (y - h)) : (y2 - (y - h)), (x1 - x) : (x2 - x)]
+
+        mask = patch.sum(axis=2) > 0
+        roi[mask] = patch[mask]
+
+        return img
 
     def put_text_on_image(self, text, position, font_scale=1, color=(255, 0, 0)):
         img = self.img.numpy()
