@@ -342,10 +342,12 @@ class Image:
 
     def save_parallel(self, img_path, verbose=True, uint16=False):
         dtype = self.img.dtype
-        if dtype == torch.float32 or dtype == torch.float64:
-            self.img = (self.img.numpy() * 255).copy().astype("uint8")
-        else:
-            self.img = self.img.numpy().copy().astype("uint8")
+        # check if self.img is torch
+        if isinstance(self.img, torch.Tensor):
+            if dtype == torch.float32 or dtype == torch.float64:
+                self.img = (self.img.numpy() * 255).copy().astype("uint8")
+            else:
+                self.img = self.img.numpy().copy().astype("uint8")
         process = mp.Process(
             target=self.save_base, args=(self.img, img_path, verbose, uint16)
         )

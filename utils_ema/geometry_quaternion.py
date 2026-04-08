@@ -68,19 +68,28 @@ class Quat:
         quat = self.normalized_params()
 
         # Extract components
-        w, x, y, z = quat[..., 0], quat[..., 1], quat[..., 2], quat[..., 3]
+        quat = torch.randn(4, requires_grad=True)
+        quat = quat / quat.norm()
 
-        # Compute rotation matrix
-        R = torch.zeros(quat.shape[:-1] + (3, 3), dtype=quat.dtype, device=quat.device)
-        R[..., 0, 0] = 1 - 2 * y * y - 2 * z * z
-        R[..., 0, 1] = 2 * x * y - 2 * w * z
-        R[..., 0, 2] = 2 * x * z + 2 * w * y
-        R[..., 1, 0] = 2 * x * y + 2 * w * z
-        R[..., 1, 1] = 1 - 2 * x * x - 2 * z * z
-        R[..., 1, 2] = 2 * y * z - 2 * w * x
-        R[..., 2, 0] = 2 * x * z - 2 * w * y
-        R[..., 2, 1] = 2 * y * z + 2 * w * x
-        R[..., 2, 2] = 1 - 2 * x * x - 2 * y * y
+        w, x, y, z = quat.unbind(dim=-1)
+
+        r00 = 1 - 2 * (y * y + z * z)
+        r01 = 2 * (x * y - w * z)
+        r02 = 2 * (x * z + w * y)
+        r10 = 2 * (x * y + w * z)
+        r11 = 1 - 2 * (x * x + z * z)
+        r12 = 2 * (y * z - w * x)
+        r20 = 2 * (x * z - w * y)
+        r21 = 2 * (y * z + w * x)
+        r22 = 1 - 2 * (x * x + y * y)
+
+        R = torch.stack(
+            [
+                torch.stack([r00, r01, r02]),
+                torch.stack([r10, r11, r12]),
+                torch.stack([r20, r21, r22]),
+            ]
+        )
 
         return R
 

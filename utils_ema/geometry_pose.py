@@ -30,6 +30,7 @@ class Pose:
         self.orientation_cls = orientation.__class__
         self.position = position
         self.scale = scale.to(self.position.dtype)
+
         self.units = units
         self.device = self.position.device if device is None else device
         self.to(self.device)
