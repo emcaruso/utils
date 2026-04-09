@@ -11,6 +11,7 @@ from itertools import permutations
 from utils_ema.geometry_euler import eul
 from utils_ema.geometry_quaternion import Quat
 from utils_ema.plot import *
+import shutil
 
 
 class Pose:
@@ -253,3 +254,21 @@ class Pose:
         return t_norm, angle
 
         # assert(e_i.shape[0]==e_o.shape[0])
+
+    def save_data(self, dir: str) -> None:
+
+        shutil.rmtree(str(dir), ignore_errors=True)
+        os.makedirs(str(dir), exist_ok=True)
+
+        # save poses data
+        os.makedirs(str(dir), exist_ok=True)
+        self.to(device="cpu")
+        R = self.orientation.to_rot().detach().numpy()
+        orientation = self.orientation.params.detach().numpy()
+        position = self.position.detach().numpy()
+        scale = self.scale.detach().numpy()
+        np.save(str(dir / "object_R.npy"), R, allow_pickle=True)
+        np.save(str(dir / "object_orientation.npy"), orientation, allow_pickle=True)
+        np.save(str(dir / "object_position.npy"), position, allow_pickle=True)
+        np.save(str(dir / "object_scale.npy"), scale, allow_pickle=True)
+        np.save(str(dir / "object_pose.npy"), self, allow_pickle=True)
