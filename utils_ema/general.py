@@ -61,8 +61,11 @@ def load_function_from_path(path, function_name):
 
 
 def get_monitor():
-    monitors = [m for m in get_monitors()]
-    return monitors[0]
+    try:
+        monitors = [m for m in get_monitors()]
+        return monitors[0]
+    except:
+        return None
 
 
 ##### PERFORMANCE ######

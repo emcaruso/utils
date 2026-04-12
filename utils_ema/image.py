@@ -14,11 +14,12 @@ from scipy.ndimage import distance_transform_edt
 from scipy.ndimage import label, center_of_mass
 from pathlib import Path
 import multiprocessing as mp
-from utils_ema.general import get_monitor
-from utils_ema.const import dict_multi_show
 
-
-m = get_monitor()
+# from utils_ema.general import get_monitor
+# from utils_ema.const import dict_multi_show
+#
+#
+# # m = get_monitor()
 
 
 class Image:
